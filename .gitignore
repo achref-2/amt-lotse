@@ -229,3 +229,5 @@ audio/
 *.ocr.txt
 # Generated reply drafts (contain personal data once filled in)
 replies/
+# Text-eval reports
+eval_results/

@@ -82,8 +82,11 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
 
 ## Web UI
 ```bash
-uv run amt-lotse-ui        # opens http://127.0.0.1:7860 — only reachable from this computer
+uv run amt-lotse-ui          # opens http://127.0.0.1:7860 — only reachable from this computer
+uv run amt-lotse-ui --lan    # also reachable from your phone on the same Wi-Fi (password protected)
 ```
+
+**From a phone:** with `--lan`, the terminal shows an address like `http://192.168.178.23:7860`, a user name and a fresh password. Open it on the phone, tap the upload box and choose *Camera* to photograph the letter. The photo goes only to your own computer — nothing leaves your home network. Use this only in a network you trust; Windows may ask once whether Python may accept connections in private networks. (The webcam button inside the page needs HTTPS and therefore does not work on phones — use the upload box's camera option instead.)
 Language choice, photo/PDF upload or webcam, one-click example letters, a big "Explain" button,
 step-by-step progress, auto-playing audio, a "what the computer read" panel for a helper to check,
 and the reply drafts with copy and download.
@@ -139,6 +142,7 @@ extract (Qwen2.5 3B, JSON schema) ──► rule-based guardrails ──► summ
 | `src/amt_lotse/reply.py` | reply drafts in formal German |
 | `src/amt_lotse/speak.py` | spoken script in 4 languages, Piper TTS |
 | `src/amt_lotse/evaluate.py` | scores the extractor against `data/eval/` |
+| `src/amt_lotse/evaluate_text.py` | rule-based checks for explanation and reply texts |
 
 ## Evaluation
 `uv run python -m amt_lotse.evaluate` scores the extractor against 12 hand-labelled letters in `data/eval/` (Jobcenter, Ausländerbehörde, Finanzamt, Krankenkasse, Beitragsservice, landlord, university, debt reminder).
@@ -149,14 +153,40 @@ The test letters contain deliberate traps: several dates where only one is a dea
 |---|---|---|
 | qwen2.5:3b + guardrails | **36/36** | ~35 s |
 
-What the eval taught us:
+### Explanation and reply texts
+`uv run python -m amt_lotse.evaluate_text --lang en` (or `fr`, `ar`, `de`) runs the full pipeline on all eval letters and checks the free text with rules — no human labels, no "LLM judge":
+
+| Explanation | Reply draft |
+|---|---|
+| mentions the right deadline and amount | no invented dates/amounts left |
+| no invented dates or amounts | first person singular ("ich", never "wir") |
+| no false reassurance ("nothing will happen", "does not specify") | formal "Sie", never "du" |
+| right language and script | exactly one closing, reference number included, 1–6 sentences |
+
+It also counts how often the guardrail had to replace numbers the model invented in a reply. A JSON report with every text is written to `eval_results/`.
+
+**Latest run** (English, 12 letters, Qwen2.5 7B for the texts, ~14 min):
+
+| Part | Result |
+|---|---|
+| Explanations | **64/64** checks — right deadline and amount every time, nothing invented, no false reassurance |
+| Replies | 67/72 checks with the first version of the rules |
+
+Reading the failed replies changed both the rules and the guardrail:
+- 4 of the 5 "not first person" failures were correct German ("…wenn **wir** den Termin verschieben könnten" = you and I). The check now only fails if the writer never speaks as "ich" — which leaves 1 real failure (a whole letter written as "Wir …").
+- 2 instalment replies said "in **drei** Monatsraten": an invented number, written as a word, that neither the guardrail nor the eval had seen. Number words (*zwei* … *zwölf*) not in the letter are now replaced with `[Anzahl]` as well.
+
+Rules cannot catch every meaning error: an explanation that mixes up the appeal period (*Einspruch*) with a payment consequence still passes, and small grammar mistakes in the German replies ("in einem einzigen Überweisung") are not checked. Those are the next things to measure.
+
+What the extraction eval taught us:
 - The small model reads amounts and dates well, but is **unreliable on who pays** — it flipped between runs and between `.txt` and PDF versions of the same letter. That decision is now made by rules on the letter's own wording.
 - 3B and 7B scored the same on extraction, with 3B about 5× faster → 3B extracts, 7B writes (3B often failed to answer in Arabic).
 
 `data/photos/` contains a scan, a tilted phone photo, a digital PDF and a scanned PDF made from the test letters. All test letters are fictional and marked as test data.
 
 ## Limitations
-- The explanation and reply texts are not evaluated yet; the 7B model sometimes adds statements that are not in the letter (e.g. mixing up the appeal period with a consequence of not paying). Dates and amounts in the summary card and audio are checked by code — the free text is not.
+- Explanation and reply texts are checked by rules, not for meaning: the 7B model sometimes mixes things up (e.g. the appeal period vs. a consequence of not paying). Dates and amounts in the summary card and audio are checked by code — the free text only partly.
+- The German in reply drafts is understandable but not always grammatically perfect. Read it before sending, or have someone check it.
 - OCR can silently miss a paragraph; the transcription is saved as `<file>.ocr.txt` so a helper can compare it with the paper letter.
 - The payment rules were built and tested on the same 12 letters; unusual wording may slip through.
 - This is not legal advice. For important decisions, ask an advice centre (Beratungsstelle).
@@ -169,6 +199,7 @@ What the eval taught us:
 - [x] OCR for photos and scanned PDFs
 - [x] Reply drafts in formal German
 - [x] Web UI with photo upload, example letters, progress steps and audio
-- [ ] Evaluation for explanation and reply texts
-- [ ] Use from a phone on the same Wi-Fi (camera upload)
+- [x] Rule-based evaluation for explanation and reply texts
+- [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
+- [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [ ] Voice input, MCP server + agent, Docker

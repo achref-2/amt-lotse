@@ -55,6 +55,8 @@ GREETING_OR_CLOSING = re.compile(
 )
 PLACEHOLDER = re.compile(r"\[[^\]]+\]")
 AMOUNT_OR_DATE = re.compile(r"\d{1,2}\.\d{1,2}\.\d{2,4}|\d+(?:\.\d{3})*,\d{2}")
+# Counts written as words ("in drei Monatsraten") are invented numbers too.
+NUMBER_WORDS = re.compile(r"\b(zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf)\b", re.IGNORECASE)
 
 
 @dataclass
@@ -123,6 +125,9 @@ def _clean_body(text: str, sender: str = "") -> str:
 def _replace_invented(body: str, invented: list[str]) -> str:
     """Turn dates/amounts the model made up into placeholders the user must fill in."""
     for value in invented:
+        if NUMBER_WORDS.fullmatch(value):
+            body = re.sub(rf"\b{value}\b", "[Anzahl]", body)
+            continue
         placeholder = "[Datum]" if re.fullmatch(r"\d{1,2}\.\d{1,2}\.\d{2,4}", value) else "[Betrag]"
         body = body.replace(value, placeholder)
     return body
@@ -155,7 +160,9 @@ def _explain_model() -> str:
 def _invented_numbers(body: str, letter: str, note: str | None) -> list[str]:
     """Dates/amounts in the body that appear neither in the original letter nor in the user's note."""
     allowed = letter + " " + (note or "")
-    return [x for x in AMOUNT_OR_DATE.findall(body) if x not in allowed]
+    numbers = [x for x in AMOUNT_OR_DATE.findall(body) if x not in allowed]
+    words = [w for w in NUMBER_WORDS.findall(body) if w.lower() not in allowed.lower()]
+    return numbers + words
 
 
 def build_reply(letter: str, info: LetterInfo, reference: str | None, intent: str,

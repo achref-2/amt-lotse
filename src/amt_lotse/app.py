@@ -1,9 +1,15 @@
-"""Amt-Lotse web UI (Gradio). Runs only on this computer: http://127.0.0.1:7860
+"""Amt-Lotse web UI (Gradio).
 
-Start:  uv run amt-lotse-ui
+Start:
+    uv run amt-lotse-ui          # only this computer: http://127.0.0.1:7860
+    uv run amt-lotse-ui --lan    # also your phone on the same Wi-Fi (password protected)
 """
 
+import argparse
+import os
+import secrets
 import shutil
+import socket
 import tempfile
 from pathlib import Path
 
@@ -156,9 +162,40 @@ def build_ui() -> gr.Blocks:
     return ui
 
 
+def lan_ip() -> str:
+    """The computer's address in the home network, e.g. 192.168.178.23 (no data is sent)."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+
+
 def main() -> None:
-    # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
-    build_ui().launch(server_name="127.0.0.1", inbrowser=True, css=CSS)
+    parser = argparse.ArgumentParser(prog="amt-lotse-ui")
+    parser.add_argument("--lan", action="store_true",
+                        help="also allow phones on the same Wi-Fi (asks for a password)")
+    parser.add_argument("--port", type=int, default=7860)
+    args = parser.parse_args()
+
+    if not args.lan:
+        # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
+        build_ui().launch(server_name="127.0.0.1", server_port=args.port, inbrowser=True, css=CSS)
+        return
+
+    # LAN mode: reachable from the home network, so a password is required.
+    # Letters still never leave your network: the phone sends the photo to THIS computer only.
+    password = os.environ.get("AMT_LOTSE_PASSWORD") or secrets.token_urlsafe(6)
+    ip = lan_ip()
+    print("\n" + "=" * 60)
+    print("  Open this on your phone (same Wi-Fi):")
+    print(f"     http://{ip}:{args.port}")
+    print("  User:      amt")
+    print(f"  Password:  {password}")
+    print("\n  On the phone, tap the upload box and choose 'Camera' to photograph a letter.")
+    print("  Only use this in a network you trust (your home Wi-Fi), not in public Wi-Fi.")
+    print("=" * 60 + "\n")
+    build_ui().launch(server_name="0.0.0.0", server_port=args.port, auth=("amt", password),
+                      auth_message="Amt-Lotse – please enter the password shown on the computer.",
+                      inbrowser=False, css=CSS)
 
 
 if __name__ == "__main__":
