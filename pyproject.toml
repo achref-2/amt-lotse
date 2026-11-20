@@ -3,12 +3,15 @@ name = "amt-lotse"
 version = "0.1.0"
 description = "Explains German official letters privately on your own machine: OCR, plain-language explanations, read-aloud and reply drafts"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Achref aroua", email = "125191063+achref-2@users.noreply.github.com" }
 ]
 requires-python = ">=3.14"
 dependencies = [
     "gradio>=6.32.0",
+    "mcp>=2.3.0",
     "ollama>=0.6.3",
     "pillow>=13.0.0",
     "piper-tts>=1.8.0",
@@ -19,6 +22,7 @@ dependencies = [
 [project.scripts]
 amt-lotse = "amt_lotse.cli:main"
 amt-lotse-ui = "amt_lotse.app:main"
+amt-lotse-mcp = "amt_lotse.mcp_server:main"
 
 [build-system]
 requires = ["uv_build>=0.13.9,<0.14.0"]

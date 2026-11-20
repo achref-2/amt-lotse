@@ -136,6 +136,36 @@ Voices for `--speak` are downloaded automatically on first use (into `voices/`).
 
 Models can be changed with `AMT_LOTSE_MODEL` (extraction), `AMT_LOTSE_EXPLAIN_MODEL` (explanation and replies) and `AMT_LOTSE_OCR_MODEL` (photos).
 
+## MCP server (use it from AI assistants)
+Amt-Lotse is also an [MCP](https://modelcontextprotocol.io) server, so AI assistants such as Claude Desktop, IDEs
+or local agents can use it as tools — e.g. *"What do I have to do with the letter in my Briefe folder?"*
+
+| Tool | What it does |
+|---|---|
+| `list_letters` | letters (text, PDF, photos) in the allowed folders |
+| `get_letter_facts` | code-checked facts: sender, deadline, days left, amount to pay/receive, reference number, one "what to do" sentence |
+| `explain_letter` | facts + plain-language explanation in en/fr/ar/de (local model) |
+| `draft_reply` | formal German reply with `[placeholders]`; invented numbers are replaced |
+| `create_calendar_reminder` | `.ics` file with reminders 3 days and 1 day before the deadline |
+| `read_letter_text` | the full letter text — separate on purpose, see privacy |
+
+Add it to your MCP client, e.g. Claude Desktop (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "amt-lotse": {
+      "command": "uv",
+      "args": ["--directory", "D:\\Projects\\amt-lotse", "run", "amt-lotse-mcp"],
+      "env": { "AMT_LOTSE_LETTER_DIRS": "C:\\Users\\you\\Documents\\Briefe" }
+    }
+  }
+}
+```
+
+- **Local-first:** OCR, extraction, the rule checks and the explanation all run locally. By default the tools return results, not the whole letter.
+- **Privacy:** if the assistant is a cloud model, whatever a tool returns is sent to that cloud. For full privacy, use a local MCP client.
+- **Security:** only files inside the allowed folders can be read (default: `data/` and `Documents/Briefe`); `../` tricks and other folders are rejected.
+
 ## Architecture
 
 ```text
@@ -155,6 +185,7 @@ extract (Qwen2.5 3B, JSON schema) ──► rule-based guardrails ──► summ
 | `src/amt_lotse/ocr.py` | text from `.txt`, PDF or photo; OCR with a local vision model |
 | `src/amt_lotse/extract.py` | LLM extraction, date/amount parsing, guardrails |
 | `src/amt_lotse/app.py` | Gradio web UI |
+| `src/amt_lotse/mcp_server.py` | MCP server: the pipeline as tools for AI assistants |
 | `src/amt_lotse/pipeline.py` | shared pipeline for the UI, summary card in 4 languages |
 | `src/amt_lotse/cli.py` | `amt-lotse` command, explanation, language check |
 | `src/amt_lotse/reply.py` | reply drafts in formal German |
@@ -221,4 +252,5 @@ What the extraction eval taught us:
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
-- [ ] MCP server, voice input
+- [x] MCP server with 6 tools (local-first, folder allow-list)
+- [ ] Voice input
