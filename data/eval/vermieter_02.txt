@@ -1,0 +1,31 @@
+[TESTDATEN – fiktives Musterschreiben für das Projekt amt-lotse, kein echtes Dokument]
+
+Muster Wohnbau GmbH
+Hausverwaltung
+Am Beispielpark 4, 52064 Musterstadt
+
+Herrn Max Beispiel
+Teststraße 12
+52062 Musterstadt
+
+Musterstadt, 12.11.2026
+
+Vertragsnummer: 2024-117
+
+Heizkostenabrechnung für den Zeitraum 01.10.2025 bis 30.09.2026
+
+Sehr geehrter Herr Beispiel,
+
+anbei erhalten Sie Ihre Heizkostenabrechnung.
+
+    Ihre Heizkosten laut Abrechnung           1.343,27 €
+    Geleistete Vorauszahlungen                1.200,00 €
+    -------------------------------------------------
+    Nachzahlung                                 143,27 €
+
+Bitte überweisen Sie die Nachzahlung von 143,27 € bis zum 15.12.2026 auf
+das bekannte Mietkonto. Ihre monatliche Vorauszahlung erhöht sich ab dem
+01.01.2027 von 100,00 € auf 112,00 €.
+
+Mit freundlichen Grüßen
+Muster Wohnbau GmbH

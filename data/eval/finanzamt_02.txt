@@ -1,0 +1,33 @@
+[TESTDATEN – fiktives Musterschreiben für das Projekt amt-lotse, kein echtes Dokument]
+
+Finanzamt Musterstadt
+Steuerstraße 1, 52070 Musterstadt
+
+Herrn Max Beispiel
+Teststraße 12
+52062 Musterstadt
+
+Musterstadt, 20.11.2026
+
+Steuernummer: 201/5555/1234
+
+Bescheid für 2025 über Einkommensteuer
+
+Sehr geehrter Herr Beispiel,
+
+die Einkommensteuer für das Jahr 2025 wird wie folgt festgesetzt:
+
+    Festgesetzte Einkommensteuer              1.840,00 €
+    Bereits gezahlt (Lohnsteuer)              1.528,00 €
+    -------------------------------------------------
+    Nachzahlung                                 312,00 €
+
+Bitte zahlen Sie den Betrag von 312,00 € bis zum 23.12.2026 an die
+Finanzkasse. Geben Sie dabei bitte Ihre Steuernummer an.
+
+Rechtsbehelfsbelehrung:
+Gegen diesen Bescheid können Sie innerhalb eines Monats nach seiner
+Bekanntgabe Einspruch einlegen.
+
+Mit freundlichen Grüßen
+Ihr Finanzamt Musterstadt

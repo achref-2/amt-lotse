@@ -1,0 +1,36 @@
+[TESTDATEN – fiktives Musterschreiben für das Projekt amt-lotse, kein echtes Dokument]
+
+Muster Mobilfunk GmbH
+Forderungsmanagement
+Funkstraße 3, 40210 Musterstadt
+
+Herrn Max Beispiel
+Teststraße 12
+52062 Musterstadt
+
+Musterstadt, 20.11.2026
+
+Kundennummer: K-55102
+Rechnungsnummer: RE-2026-08812
+
+2. Mahnung
+
+Sehr geehrter Herr Beispiel,
+
+trotz unserer Zahlungserinnerung vom 30.10.2026 ist die Rechnung vom
+01.10.2026 noch nicht vollständig beglichen.
+
+    Offene Rechnung                              49,90 €
+    Mahngebühr                                    5,00 €
+    Verzugszinsen                                 1,23 €
+    -------------------------------------------------
+    Gesamtbetrag                                 56,13 €
+
+Bitte überweisen Sie den Gesamtbetrag von 56,13 € bis zum 04.12.2026.
+Geben Sie als Verwendungszweck bitte Ihre Rechnungsnummer RE-2026-08812 an.
+
+Geht die Zahlung nicht fristgerecht ein, übergeben wir die Forderung an
+ein Inkassounternehmen. Dadurch entstehen Ihnen weitere Kosten.
+
+Mit freundlichen Grüßen
+Muster Mobilfunk GmbH

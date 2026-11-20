@@ -28,7 +28,7 @@ def safe(parse, text: str | None):
 
 def to_prediction(info: LetterInfo) -> dict:
     """Convert the LLM's raw strings into the same format as *.expected.json."""
-    deadline = safe(parse_german_date, info.deadline_text)
+    deadline = safe(parse_german_date, info.deadline_text) if info.recipient_has_deadline else None
     amount = safe(parse_german_amount, info.amount_text) if info.recipient_must_pay else None
     ref = normalize_reference(info.reference_number) if info.reference_number else None
     return {
@@ -59,7 +59,8 @@ def main() -> None:
         print(f"\n=== {name}  (warte auf Modell...)", flush=True)
         start = time.perf_counter()
         try:
-            got = to_prediction(extract_letter_info(letter))
+            info = extract_letter_info(letter)
+            got = to_prediction(info)
         except Exception as e:
             print(f"  ✗ Extraktion fehlgeschlagen: {e}")
             total_fields += len(FIELDS)
@@ -72,6 +73,13 @@ def main() -> None:
             total_fields += 1
             mark = "✓" if ok else "✗"
             print(f"  {mark} {field:17} got={got[field]!r:18} expected={expected[field]!r}")
+
+        if any(not is_match(f, got[f], expected[f]) for f in FIELDS):
+            # Show what the model really said, so we can see WHY a field failed.
+            print(f"    raw: has_deadline={info.recipient_has_deadline} "
+                  f"deadline_text={info.deadline_text!r}")
+            print(f"         money_direction={info.money_direction} "
+                  f"amount_text={info.amount_text!r}")
 
     if total_fields == 0:
         print("Keine *.expected.json in data/eval gefunden.")

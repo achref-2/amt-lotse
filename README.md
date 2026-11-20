@@ -1,22 +1,27 @@
-
 # Amt-Lotse
-**An AI assistant that explains German official letters, privately on your own machine!!**
+**An AI assistant that explains German official letters, privately on your own machine.**
 
-Are you new in Germany ? Letters from the krankenkasse ,Beitragsservice or Finanzamt are hard to understand , even with good German. So Amt-lotse reads the letters and tells you in SIMPLE WORDS what it means , the DEADLINE, the AMOUNT, and what you have to do.
-## Why local at first ?
-Official letters contain private data(ID, ...)
-Amt-lotse runs a local LLM via OLLAMA ,  SO **tour letters never leave your machine!**
+New in Germany? Letters from the Krankenkasse, the Beitragsservice or the Finanzamt are hard to understand, even with good German. Amt-Lotse reads the letter and tells you in simple words what it means: the **deadline**, the **amount**, and **what you have to do**.
 
+## Why local first?
+Official letters contain private data (IDs, addresses, tax numbers).
+Amt-Lotse runs a local LLM via [Ollama](https://ollama.com), so **your letters never leave your machine**.
 
-## Status 
-Early development: currently extracts deadline , amount and required action from text letters with local model (Qwen2.5 7B)
+## Status
+Early development: extracts deadline, amount, reference number and required action from text letters with a local model (Qwen2.5 3B).
 
 ## Quick start
-Requirement :Pyhton 3.12+, [uv](https://docs.astral.sh/uv/),[Ollama]
-Ollama pull qwen2.5:7b
+Requirements: Python 3.14+, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com)
+
+```bash
+ollama pull qwen2.5:3b
 uv sync
-uv run python src/amt_lotse/hello_llm.py
- ## Evaluation
+uv run python src/amt_lotse/extract.py
+```
+
+To try another model: set `AMT_LOTSE_MODEL`, e.g. `AMT_LOTSE_MODEL=qwen2.5:7b`.
+
+## Evaluation
 `uv run python -m amt_lotse.evaluate` scores the extractor against hand-labelled letters in `data/eval/`.
 
 | Model | Fields correct | Time (4 letters) |
@@ -24,9 +29,12 @@ uv run python src/amt_lotse/hello_llm.py
 | qwen2.5:3b | 12/12 | 16 s |
 | qwen2.5:7b | 12/12 | 79 s |
 
+Qwen2.5 3B is the default: same accuracy, about 5× faster on a consumer GPU.
+
 ## Roadmap
- - [x] Local LLM reads a sample letter
- - 
- - OCR
- - Explanation in English , Frensh , Arabic + reply drafrs
- - MCP server + agent , web UI ,Docker
+- [x] Local LLM reads a sample letter
+- [x] Structured extraction (deadline, amount, reference number) + evaluation set
+- [ ] More and harder test letters
+- [ ] OCR for scanned/photographed letters
+- [ ] Explanations in English, French and Arabic + reply drafts
+- [ ] MCP server + agent, web UI, Docker

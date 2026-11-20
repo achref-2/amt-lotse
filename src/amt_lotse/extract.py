@@ -3,11 +3,12 @@ import re
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Literal
 
 import ollama
 from pydantic import BaseModel, Field
 
-MODEL = os.environ.get("AMT_LOTSE_MODEL", "qwen2.5:7b")
+MODEL = os.environ.get("AMT_LOTSE_MODEL", "qwen2.5:3b")
 TIMEOUT_SECONDS = 180
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]  # extract.py -> amt_lotse -> src -> amt-lotse
@@ -17,33 +18,85 @@ DATE_PATTERN = re.compile(r"\d{1,2}\.\d{1,2}\.\d{4}")
 # Matches a leading label like "Kundennummer:", "Steuernummer", "Aktenzeichen:", "Nr."
 REF_LABEL = re.compile(r"^\s*[\w\s-]*?(nummer|nr\.?|zeichen)\s*[:.]?\s*", re.IGNORECASE)
 
+# Words that mean the recipient GETS money. Used as a safety net after the LLM.
+CREDIT_WORDS = re.compile(
+    r"guthaben|erstatt|rückzahlung|zurückzahl|gutschrift|gutgeschrieben|zu ihren gunsten",
+    re.IGNORECASE,
+)
+
 client = ollama.Client(timeout=TIMEOUT_SECONDS)
 
 
 class LetterInfo(BaseModel):
+    # Field order matters: the model fills them top to bottom.
+    # Measured on data/eval with qwen2.5:3b:
+    #   - deadline: the yes/no question BEFORE the value works best
+    #   - amount:   the value BEFORE the yes/no question works best
     sender: str
     subject: str
     letter_type: str
     required_action: str
+    recipient_has_deadline: bool = Field(
+        description=(
+            "True only if the recipient must DO something by a specific calendar date "
+            "(pay, submit documents, reply, attend an appointment). "
+            "False if the letter only contains information dates (start of a new price, "
+            "validity or billing periods, end of a Bewilligungszeitraum, letter date) "
+            "or only a relative period like 'innerhalb von vier Wochen'."
+        )
+    )
     deadline_text: str | None = Field(
-        description="Deadline for the recipient's action, exactly as written in the letter, e.g. '15.12.2026'"
+        description=(
+            "The date by which the recipient must act or attend an appointment, "
+            "exactly as written, e.g. 'bis zum 15.12.2026' or 'am 08.12.2026'. "
+            "Never a period, never a date when something changes or ends. "
+            "null if recipient_has_deadline is false."
+        )
     )
     amount_text: str | None = Field(
         description=(
-            "Amount the recipient must PAY, exactly as written in the letter, e.g. '55,08 €'. "
+            "The total amount the recipient must PAY, exactly as written in the letter, e.g. '55,08 €'. "
+            "If there are several amounts (e.g. invoice + fees), use the total. "
             "Use null if the recipient does not have to pay anything "
             "(e.g. credits/Guthaben, refunds, prices for information only)."
         )
     )
-    recipient_must_pay: bool = Field(
+    money_direction: Literal["recipient_pays", "recipient_receives", "no_payment"] = Field(
         description=(
-            "True only if the recipient has to pay money. "
-            "False for credits (Guthaben), refunds, price information or letters without a payment."
+            "Who gets the money? "
+            "'recipient_pays': the recipient must pay or transfer money (Rechnung, Mahnung, Nachzahlung, Gebühr). "
+            "'recipient_receives': the recipient GETS money (Guthaben, Erstattung, Rückzahlung). "
+            "'no_payment': no money changes hands (information, appointments, documents)."
         )
     )
     reference_number: str | None = Field(
         description="Only the reference number itself, without its label, e.g. '987 654 321'"
     )
+
+
+def _must_pay(info: "LetterInfo") -> bool:
+    return info.money_direction == "recipient_pays"
+
+
+LetterInfo.recipient_must_pay = property(_must_pay)  # keeps evaluate.py unchanged
+
+
+def amount_is_credit(letter: str, amount_text: str) -> bool:
+    """True if the letter mentions this amount right next to a credit word.
+
+    Looks at the line with the amount plus the line before it,
+    e.g. 'Ihr Guthaben beträgt\n64,30 €.' -> True.
+    """
+    number = re.search(r"\d[\d.]*,\d{2}", amount_text)
+    if number is None:
+        return False
+    lines = letter.splitlines()
+    for i, line in enumerate(lines):
+        if number.group() in line:
+            context = " ".join(lines[max(i - 1, 0) : i + 1])
+            if CREDIT_WORDS.search(context):
+                return True
+    return False
 
 
 def normalize_reference(text: str) -> str:
@@ -78,6 +131,7 @@ def extract_letter_info(letter: str) -> LetterInfo:
                 "content": (
                     "You extract information from German official letters. "
                     "Only use facts stated in the letter. If something is missing, use null. "
+                    "deadline_text is only a date by which the recipient must act. "
                     "amount_text is only an amount the recipient has to pay."
                 ),
             },
@@ -86,14 +140,24 @@ def extract_letter_info(letter: str) -> LetterInfo:
         format=LetterInfo.model_json_schema(),
         options={"temperature": 0},
     )
-    return LetterInfo.model_validate_json(response["message"]["content"])
+    info = LetterInfo.model_validate_json(response["message"]["content"])
+
+    # Safety net: small models sometimes call a refund a payment.
+    # If the letter itself puts the amount next to "Guthaben"/"Erstattung", trust the letter.
+    if info.amount_text and amount_is_credit(letter, info.amount_text):
+        info.money_direction = "recipient_receives"
+    return info
 
 
 if __name__ == "__main__":
     print(f"Model: {MODEL}  |  Letter: {LETTER_PATH.relative_to(PROJECT_ROOT)}")
     info = extract_letter_info(read_letter())
 
-    deadline = parse_german_date(info.deadline_text) if info.deadline_text else None
+    deadline = (
+        parse_german_date(info.deadline_text)
+        if info.deadline_text and info.recipient_has_deadline
+        else None
+    )
     amount = (
         parse_german_amount(info.amount_text)
         if info.amount_text and info.recipient_must_pay
