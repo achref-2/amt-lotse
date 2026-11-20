@@ -7,7 +7,26 @@ Letters from the Jobcenter, the Krankenkasse, the Finanzamt or the Ausländerbeh
 - **blind and visually impaired people** who cannot read a paper letter,
 - **older people** who find small print and official language overwhelming.
 
-Amt-Lotse reads the letter — as text, PDF or **a photo** — and tells you in simple words: **who sent it, the deadline, how much you have to pay (or receive), and what you have to do**. In English, French, Arabic or simple German, **read aloud** if you want, and it can **draft a reply** in formal German.
+Amt-Lotse reads the letter — as text, PDF or **a photo**, in a simple **web UI** or on the command line — and tells you in simple words: **who sent it, the deadline, how much you have to pay (or receive), and what you have to do**. In English, French, Arabic or simple German, **read aloud** if you want, and it can **draft a reply** in formal German.
+
+## Screenshots
+All screenshots use fictional test letters from `data/`.
+
+**1. Upload a photo, PDF or text — or try an example letter**
+
+![Upload screen with language choice, file upload, webcam and example letters](docs/upload.png)
+
+**2. Result in English: checked facts first, then audio, then the explanation**
+
+![English result for a debt reminder: deadline, 56,13 € to pay, reference number, audio player and explanation](docs/result_en.png)
+
+**3. The same in Arabic — card, audio and explanation in the user's language (right-to-left)**
+
+![Arabic result for a tax assessment: deadline, 312,00 € to pay, reference number, audio player and Arabic explanation](docs/result_ar.png)
+
+**Progress is shown step by step, in the chosen language, so nobody thinks "nothing is happening"**
+
+![Progress bar with an Arabic status message](docs/progress_ar.png)
 
 ## Why local first?
 Official letters contain private data (IDs, addresses, tax numbers).
@@ -51,7 +70,7 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
   - saved as `.wav`, so it can be replayed or sent to someone
 - **Reply drafts** (`--reply`) in formal German: ask for more time, installments, say you already paid, ask for a new appointment, ask a question
   - letter frame (reference number, dates, subject, greeting) built by code; the LLM only writes the body
-  - unknown details stay as `[placeholders]`; dates/amounts the LLM invents are detected and rejected
+  - unknown details stay as `[placeholders]`; dates/amounts the LLM invents are detected and replaced with placeholders
   - your own note in any language (`--note "I am sick until 10 December"`) is used and translated
   - a short explanation of the draft in your language
 - **Guardrails** on top of the LLMs:
@@ -60,6 +79,14 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
   - an amount that exists but cannot be read is shown as **unclear** — never as "you pay nothing"
   - language and script check with automatic retry
 - **Evaluation harness** with hand-labelled test letters
+
+## Web UI
+```bash
+uv run amt-lotse-ui        # opens http://127.0.0.1:7860 — only reachable from this computer
+```
+Language choice, photo/PDF upload or webcam, one-click example letters, a big "Explain" button,
+step-by-step progress, auto-playing audio, a "what the computer read" panel for a helper to check,
+and the reply drafts with copy and download.
 
 ## Quick start
 Requirements: Python 3.14+, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com)
@@ -106,6 +133,8 @@ extract (Qwen2.5 3B, JSON schema) ──► rule-based guardrails ──► summ
 |---|---|
 | `src/amt_lotse/ocr.py` | text from `.txt`, PDF or photo; OCR with a local vision model |
 | `src/amt_lotse/extract.py` | LLM extraction, date/amount parsing, guardrails |
+| `src/amt_lotse/app.py` | Gradio web UI |
+| `src/amt_lotse/pipeline.py` | shared pipeline for the UI, summary card in 4 languages |
 | `src/amt_lotse/cli.py` | `amt-lotse` command, explanation, language check |
 | `src/amt_lotse/reply.py` | reply drafts in formal German |
 | `src/amt_lotse/speak.py` | spoken script in 4 languages, Piper TTS |
@@ -127,7 +156,7 @@ What the eval taught us:
 `data/photos/` contains a scan, a tilted phone photo, a digital PDF and a scanned PDF made from the test letters. All test letters are fictional and marked as test data.
 
 ## Limitations
-- The explanation and reply texts are not evaluated yet; the 7B model sometimes adds vague statements that are not in the letter. Dates and amounts in the summary box and audio are checked by code — the free text is not.
+- The explanation and reply texts are not evaluated yet; the 7B model sometimes adds statements that are not in the letter (e.g. mixing up the appeal period with a consequence of not paying). Dates and amounts in the summary card and audio are checked by code — the free text is not.
 - OCR can silently miss a paragraph; the transcription is saved as `<file>.ocr.txt` so a helper can compare it with the paper letter.
 - The payment rules were built and tested on the same 12 letters; unusual wording may slip through.
 - This is not legal advice. For important decisions, ask an advice centre (Beratungsstelle).
@@ -139,6 +168,7 @@ What the eval taught us:
 - [x] Read aloud with offline TTS, accessibility-first
 - [x] OCR for photos and scanned PDFs
 - [x] Reply drafts in formal German
-- [ ] Web UI with photo upload and a big "Listen" button
+- [x] Web UI with photo upload, example letters, progress steps and audio
 - [ ] Evaluation for explanation and reply texts
+- [ ] Use from a phone on the same Wi-Fi (camera upload)
 - [ ] Voice input, MCP server + agent, Docker

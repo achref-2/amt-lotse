@@ -14,6 +14,14 @@ from amt_lotse.pipeline import analyze, summary_card
 from amt_lotse.reply import INTENTS, build_reply
 from amt_lotse.speak import TEXT, SpokenFacts, build_script, speak
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+EXAMPLES = [  # fictional test letters, safe to show
+    PROJECT_ROOT / "data" / "photos" / "jobcenter_01_photo.jpg",
+    PROJECT_ROOT / "data" / "photos" / "mahnung_01_scan.png",
+    PROJECT_ROOT / "data" / "photos" / "finanzamt_02_digital.pdf",
+    PROJECT_ROOT / "data" / "eval" / "krankenkasse_02.txt",
+]
+
 LANG_CHOICES = [("English", "en"), ("Français", "fr"), ("العربية", "ar"), ("Deutsch (einfach)", "de")]
 REPLY_CHOICES = [(v["label"], k) for k, v in INTENTS.items()]
 
@@ -111,6 +119,10 @@ def build_ui() -> gr.Blocks:
         with gr.Row():
             file_in = gr.File(label="Letter: photo, PDF or text", file_types=[".jpg", ".jpeg", ".png", ".pdf", ".txt"], type="filepath")
             photo_in = gr.Image(label="…or take a photo", sources=["webcam", "upload"], type="filepath")
+
+        examples = [[str(p)] for p in EXAMPLES if p.exists()]
+        if examples:
+            gr.Examples(examples, inputs=[file_in], label="🧪 Try an example letter (fictional test data)")
 
         with gr.Row():
             read_aloud = gr.Checkbox(value=True, label="🔊 Read aloud")

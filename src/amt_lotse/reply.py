@@ -79,7 +79,9 @@ def _write_body(letter: str, info: LetterInfo, intent: str, note: str | None) ->
                 "role": "system",
                 "content": (
                     "You write the body of a short, polite, formal German reply letter (Sie-Form) "
-                    "to a German authority or company. Write 3 to 5 sentences. "
+                    "to a German authority or company. The writer is ONE person, the recipient of the letter: "
+                    "always write in the first person singular (ich, mein, mir), never 'wir'. "
+                    "Write 3 to 5 sentences. "
                     "Do NOT write a greeting, a closing, addresses, a date or a subject line. "
                     "Do NOT invent facts: no new dates, amounts, reasons or names. "
                     "Everything that is unknown stays as a placeholder in square brackets, "
@@ -99,15 +101,31 @@ def _write_body(letter: str, info: LetterInfo, intent: str, note: str | None) ->
         ],
         options={"temperature": 0},
     )
-    return _clean_body(response["message"]["content"])
+    return _clean_body(response["message"]["content"], info.sender)
 
 
-def _clean_body(text: str) -> str:
-    """Remove greetings/closings the model added anyway (the frame adds its own)."""
+def _clean_body(text: str, sender: str = "") -> str:
+    """Remove greetings/closings and copied sender signatures (the frame adds its own)."""
     text = re.sub(r"\s*(mit freundlichen grüßen|freundliche grüße|hochachtungsvoll)[\s,.!]*$", "",
                   text.strip(), flags=re.IGNORECASE)
-    lines = [line for line in text.splitlines() if not GREETING_OR_CLOSING.match(line)]
-    return "\n".join(lines).strip()
+    keep = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if GREETING_OR_CLOSING.match(stripped):
+            continue
+        # e.g. "Ihr Finanzamt Musterstadt" or just "Finanzamt Musterstadt" copied from the letter
+        if sender and stripped.lower().removeprefix("ihr ").removeprefix("ihre ").strip(" ,.") == sender.lower():
+            continue
+        keep.append(line)
+    return "\n".join(keep).strip()
+
+
+def _replace_invented(body: str, invented: list[str]) -> str:
+    """Turn dates/amounts the model made up into placeholders the user must fill in."""
+    for value in invented:
+        placeholder = "[Datum]" if re.fullmatch(r"\d{1,2}\.\d{1,2}\.\d{2,4}", value) else "[Betrag]"
+        body = body.replace(value, placeholder)
+    return body
 
 
 def _summarize(german: str, language: str) -> str:
@@ -150,7 +168,10 @@ def build_reply(letter: str, info: LetterInfo, reference: str | None, intent: st
         body = _write_body(letter, info, intent, note)
         invented = _invented_numbers(body, letter, note)
         if invented:
-            warnings.append(f"The draft contains numbers that are not in the letter: {', '.join(invented)}. Check them.")
+            # Never leave made-up numbers in a letter someone might send: replace them.
+            body = _replace_invented(body, invented)
+            warnings.append(f"Numbers that were not in the letter ({', '.join(invented)}) "
+                            "were replaced with [placeholders]. Fill in your own values.")
 
     sent_on = letter_date(letter)
     ref_line = f"Ihr Zeichen / Nummer: {reference}" if reference else "Ihr Zeichen: [Nummer aus dem Brief]"
