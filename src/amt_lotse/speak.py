@@ -39,6 +39,13 @@ MONTHS = {
            "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
 }
 
+WEEKDAYS = {
+    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "fr": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
+    "de": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
+    "ar": ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"],
+}
+
 TEXT = {
     "en": {
         "intro": "This is a letter from {sender}.",
@@ -130,8 +137,15 @@ class SpokenFacts:
 
 
 def say_date(d: date, lang: str) -> str:
-    return f"{d.day}. {MONTHS[lang][d.month - 1]} {d.year}" if lang == "de" else \
-        f"{d.day} {MONTHS[lang][d.month - 1]} {d.year}"
+    """Date with weekday, as people say it: 'Friday, 4 December 2026', 'Freitag, 4. Dezember 2026'."""
+    weekday = WEEKDAYS[lang][d.weekday()]
+    if lang == "de":
+        return f"{weekday}, {d.day}. {MONTHS[lang][d.month - 1]} {d.year}"
+    if lang == "fr":
+        return f"{weekday} {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
+    if lang == "ar":
+        return f"يوم {weekday} {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
+    return f"{weekday}, {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
 
 
 def say_amount(amount: Decimal, lang: str) -> str:

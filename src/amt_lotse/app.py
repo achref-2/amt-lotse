@@ -1,8 +1,18 @@
-"""Amt-Lotse web UI (Gradio).
+"""Amt-Lotse web UI, designed for blind people, older people and new immigrants.
 
 Start:
     uv run amt-lotse-ui          # only this computer: http://127.0.0.1:7860
     uv run amt-lotse-ui --lan    # also your phone on the same Wi-Fi (password protected)
+
+Design rules
+- Three steps only: 1 language, 2 letter, 3 result. Everything else is folded away.
+- The whole page speaks the chosen language (labels, buttons, messages, lang/dir attributes,
+  so screen readers switch to the right voice). The choice is remembered.
+- Uploading a letter starts the explanation: no button needs to be found.
+- The first thing in the result is ONE sentence: what you must do, by when. Built from
+  code-checked facts, red when 7 days or fewer are left.
+- Status messages are announced to screen readers; focus jumps to the result when it is ready.
+- Large text, large buttons, visible keyboard focus, text size and high-contrast buttons.
 """
 
 import argparse
@@ -16,7 +26,7 @@ from pathlib import Path
 import gradio as gr
 
 from amt_lotse.cli import LANGUAGES, explain
-from amt_lotse.pipeline import analyze, summary_card
+from amt_lotse.pipeline import analyze, calendar_file, summary_card, todo_box
 from amt_lotse.reply import INTENTS, build_reply
 from amt_lotse.speak import TEXT, SpokenFacts, build_script, speak
 
@@ -27,141 +37,367 @@ EXAMPLES = [  # fictional test letters, safe to show
     PROJECT_ROOT / "data" / "photos" / "finanzamt_02_digital.pdf",
     PROJECT_ROOT / "data" / "eval" / "krankenkasse_02.txt",
 ]
-
 LANG_CHOICES = [("English", "en"), ("Français", "fr"), ("العربية", "ar"), ("Deutsch (einfach)", "de")]
-REPLY_CHOICES = [(v["label"], k) for k, v in INTENTS.items()]
 
-UI_TEXT = {
-    "en": {"working": "Reading the letter … this can take up to a minute.", "bad": "⚠️ The letter could not be read well. Please take the photo again: good light, the whole page, phone held straight above it.",
-           "no_file": "Please upload a photo, PDF or text file first.", "error": "Something went wrong: {e}. Is Ollama running?"},
-    "fr": {"working": "Lecture de la lettre … cela peut prendre une minute.", "bad": "⚠️ La lettre n'a pas pu être bien lue. Reprenez la photo : bonne lumière, page entière, téléphone bien au-dessus.",
-           "no_file": "Veuillez d'abord ajouter une photo, un PDF ou un fichier texte.", "error": "Une erreur est survenue : {e}. Ollama est-il lancé ?"},
-    "ar": {"working": "جار قراءة الرسالة … قد يستغرق ذلك دقيقة.", "bad": "⚠️ لم تتم قراءة الرسالة جيدا. من فضلك التقط الصورة مرة أخرى: إضاءة جيدة، الصفحة كاملة، والهاتف مستقيم فوقها.",
-           "no_file": "من فضلك أضف صورة أو ملف PDF أو ملفا نصيا أولا.", "error": "حدث خطأ: {e}. هل برنامج Ollama يعمل؟"},
-    "de": {"working": "Der Brief wird gelesen … das kann eine Minute dauern.", "bad": "⚠️ Der Brief war nicht gut lesbar. Bitte machen Sie das Foto noch einmal: gutes Licht, ganze Seite, Handy gerade darüber.",
-           "no_file": "Bitte laden Sie zuerst ein Foto, PDF oder eine Textdatei hoch.", "error": "Es gab einen Fehler: {e}. Läuft Ollama?"},
+# ---------------------------------------------------------------- all visible text, per language
+UI = {
+    "en": {
+        "title": "Amt-Lotse", "subtitle": "Understand letters from German offices — in your language, read aloud, privately on this computer.",
+        "step1": "1. Choose your language", "step2": "2. Your letter",
+        "hint2": "Take a photo of the letter with your phone, or choose a file (photo, PDF or text). The explanation starts by itself.",
+        "file": "Letter", "examples": "Try it with an example letter (not a real letter)",
+        "go": "Explain the letter", "step3": "3. Result",
+        "listen_again": "Listen again", "calendar": "Add the deadline to my calendar",
+        "read": "What the computer read (for a helper to check)",
+        "reply": "Write a reply in German", "intent": "What do you want to say?",
+        "note": "Your own information (optional, any language)", "note_ph": "e.g. I am sick until 10 December",
+        "reply_btn": "Write the reply", "reply_text": "Reply in German – fill in every [ ] before sending", "download": "Download",
+        "settings": "Settings", "read_aloud": "Read the result aloud automatically", "slow": "Speak slowly",
+        "bigger": "Bigger text", "smaller": "Smaller text", "contrast": "High contrast",
+        "footer": "This is an automatic summary. Always check the original letter. It is not legal advice — for important decisions, ask an advice centre (Beratungsstelle).",
+        "s_read": "Reading the letter …", "s_facts": "Finding the deadline and the amount …",
+        "s_explain": "Writing the explanation …", "s_audio": "Creating the audio …", "s_done": "Done. The result is below.",
+        "s_reply": "Writing the reply …", "s_reply_done": "The reply is ready.",
+        "first_time": "The first time can take 1–2 minutes. Please wait.",
+        "bad": "The letter could not be read well. Please take the photo again: good light, the whole page, phone held straight above it.",
+        "no_file": "Please add a letter first (step 2).", "error": "Something went wrong: {e}. Is Ollama running?",
+        "intents": {"more-time": "Ask for more time", "installments": "Ask to pay in parts (installments)",
+                    "already-paid": "Say that I already paid", "reschedule": "Ask for a new appointment",
+                    "question": "Ask a question about the letter"},
+    },
+    "fr": {
+        "title": "Amt-Lotse", "subtitle": "Comprendre les lettres des administrations allemandes — dans votre langue, à voix haute, en privé sur cet ordinateur.",
+        "step1": "1. Choisissez votre langue", "step2": "2. Votre lettre",
+        "hint2": "Prenez la lettre en photo avec votre téléphone, ou choisissez un fichier (photo, PDF ou texte). L'explication démarre toute seule.",
+        "file": "Lettre", "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
+        "go": "Expliquer la lettre", "step3": "3. Résultat",
+        "listen_again": "Écouter encore", "calendar": "Ajouter la date limite à mon agenda",
+        "read": "Ce que l'ordinateur a lu (pour vérification par une autre personne)",
+        "reply": "Écrire une réponse en allemand", "intent": "Que voulez-vous dire ?",
+        "note": "Vos informations (facultatif, dans n'importe quelle langue)", "note_ph": "p. ex. je suis malade jusqu'au 10 décembre",
+        "reply_btn": "Écrire la réponse", "reply_text": "Réponse en allemand – remplissez chaque [ ] avant l'envoi", "download": "Télécharger",
+        "settings": "Réglages", "read_aloud": "Lire le résultat à voix haute automatiquement", "slow": "Parler lentement",
+        "bigger": "Texte plus grand", "smaller": "Texte plus petit", "contrast": "Contraste élevé",
+        "footer": "Ceci est un résumé automatique. Vérifiez toujours la lettre originale. Ce n'est pas un conseil juridique — pour les décisions importantes, demandez à un centre de conseil (Beratungsstelle).",
+        "s_read": "Lecture de la lettre …", "s_facts": "Recherche de la date limite et du montant …",
+        "s_explain": "Rédaction de l'explication …", "s_audio": "Création de l'audio …", "s_done": "Terminé. Le résultat est ci-dessous.",
+        "s_reply": "Rédaction de la réponse …", "s_reply_done": "La réponse est prête.",
+        "first_time": "La première fois peut prendre 1 à 2 minutes. Merci de patienter.",
+        "bad": "La lettre n'a pas pu être bien lue. Reprenez la photo : bonne lumière, page entière, téléphone bien au-dessus.",
+        "no_file": "Ajoutez d'abord une lettre (étape 2).", "error": "Une erreur est survenue : {e}. Ollama est-il lancé ?",
+        "intents": {"more-time": "Demander plus de temps", "installments": "Demander à payer en plusieurs fois",
+                    "already-paid": "Dire que j'ai déjà payé", "reschedule": "Demander un nouveau rendez-vous",
+                    "question": "Poser une question sur la lettre"},
+    },
+    "ar": {
+        "title": "Amt-Lotse", "subtitle": "افهم رسائل الإدارات الألمانية — بلغتك، بصوت مسموع، وبخصوصية تامة على هذا الحاسوب.",
+        "step1": "الخطوة 1: اختر لغتك", "step2": "الخطوة 2: رسالتك",
+        "hint2": "التقط صورة للرسالة بهاتفك، أو اختر ملفا: صورة أو ملف PDF أو نص. يبدأ الشرح تلقائيا.",
+        "file": "الرسالة", "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
+        "go": "اشرح الرسالة", "step3": "الخطوة 3: النتيجة",
+        "listen_again": "استمع مرة أخرى", "calendar": "أضف الموعد النهائي إلى تقويمي",
+        "read": "ما قرأه الحاسوب (ليتحقق منه شخص آخر)",
+        "reply": "اكتب ردا بالألمانية", "intent": "ماذا تريد أن تقول؟",
+        "note": "معلوماتك الخاصة (اختياري، بأي لغة)", "note_ph": "مثلا: أنا مريض حتى 10 ديسمبر",
+        "reply_btn": "اكتب الرد", "reply_text": "الرد بالألمانية – املأ كل [ ] قبل الإرسال", "download": "تنزيل",
+        "settings": "الإعدادات", "read_aloud": "اقرأ النتيجة بصوت مسموع تلقائيا", "slow": "تحدث ببطء",
+        "bigger": "نص أكبر", "smaller": "نص أصغر", "contrast": "تباين عال",
+        "footer": "هذا ملخص آلي. راجع دائما الرسالة الأصلية. هذه ليست استشارة قانونية — للقرارات المهمة اسأل مركز استشارة (Beratungsstelle).",
+        "s_read": "جار قراءة الرسالة …", "s_facts": "جار البحث عن الموعد والمبلغ …",
+        "s_explain": "جار كتابة الشرح …", "s_audio": "جار إنشاء الصوت …", "s_done": "انتهى. النتيجة في الأسفل.",
+        "s_reply": "جار كتابة الرد …", "s_reply_done": "الرد جاهز.",
+        "first_time": "قد تستغرق المرة الأولى دقيقة أو دقيقتين. من فضلك انتظر.",
+        "bad": "لم تتم قراءة الرسالة جيدا. من فضلك التقط الصورة مرة أخرى: إضاءة جيدة، الصفحة كاملة، والهاتف مستقيم فوقها.",
+        "no_file": "من فضلك أضف رسالة أولا (الخطوة 2).", "error": "حدث خطأ: {e}. هل برنامج Ollama يعمل؟",
+        "intents": {"more-time": "طلب مهلة إضافية", "installments": "طلب الدفع على أقساط",
+                    "already-paid": "القول إنني دفعت بالفعل", "reschedule": "طلب موعد جديد",
+                    "question": "طرح سؤال عن الرسالة"},
+    },
+    "de": {
+        "title": "Amt-Lotse", "subtitle": "Briefe von Ämtern verstehen — in Ihrer Sprache, vorgelesen, privat auf diesem Computer.",
+        "step1": "1. Sprache wählen", "step2": "2. Ihr Brief",
+        "hint2": "Machen Sie mit dem Handy ein Foto vom Brief, oder wählen Sie eine Datei (Foto, PDF oder Text). Die Erklärung startet von selbst.",
+        "file": "Brief", "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
+        "go": "Brief erklären", "step3": "3. Ergebnis",
+        "listen_again": "Noch einmal anhören", "calendar": "Frist in meinen Kalender eintragen",
+        "read": "Was der Computer gelesen hat (zum Prüfen durch eine Hilfsperson)",
+        "reply": "Eine Antwort schreiben", "intent": "Was möchten Sie sagen?",
+        "note": "Ihre eigenen Angaben (freiwillig, in jeder Sprache)", "note_ph": "z. B. Ich bin bis 10. Dezember krank",
+        "reply_btn": "Antwort schreiben", "reply_text": "Antwort – füllen Sie jedes [ ] vor dem Senden aus", "download": "Herunterladen",
+        "settings": "Einstellungen", "read_aloud": "Ergebnis automatisch vorlesen", "slow": "Langsam sprechen",
+        "bigger": "Größere Schrift", "smaller": "Kleinere Schrift", "contrast": "Hoher Kontrast",
+        "footer": "Dies ist eine automatische Zusammenfassung. Prüfen Sie immer den Originalbrief. Keine Rechtsberatung — bei wichtigen Entscheidungen fragen Sie eine Beratungsstelle.",
+        "s_read": "Der Brief wird gelesen …", "s_facts": "Frist und Betrag werden gesucht …",
+        "s_explain": "Die Erklärung wird geschrieben …", "s_audio": "Die Audiodatei wird erstellt …", "s_done": "Fertig. Das Ergebnis steht unten.",
+        "s_reply": "Die Antwort wird geschrieben …", "s_reply_done": "Die Antwort ist fertig.",
+        "first_time": "Beim ersten Mal kann es 1–2 Minuten dauern. Bitte warten.",
+        "bad": "Der Brief war nicht gut lesbar. Bitte machen Sie das Foto noch einmal: gutes Licht, ganze Seite, Handy gerade darüber.",
+        "no_file": "Bitte fügen Sie zuerst einen Brief hinzu (Schritt 2).", "error": "Es gab einen Fehler: {e}. Läuft Ollama?",
+        "intents": {"more-time": "Um mehr Zeit bitten", "installments": "Um Ratenzahlung bitten",
+                    "already-paid": "Sagen, dass ich schon bezahlt habe", "reschedule": "Um einen neuen Termin bitten",
+                    "question": "Eine Frage zum Brief stellen"},
+    },
 }
 
-STEPS = {
-    "en": ["📷 Reading the letter …", "🔍 Finding deadline and amount …", "✍️ Writing the explanation …", "🔊 Creating audio …", "✉️ Writing the reply …"],
-    "fr": ["📷 Lecture de la lettre …", "🔍 Recherche de la date limite et du montant …", "✍️ Rédaction de l'explication …", "🔊 Création de l'audio …", "✉️ Rédaction de la réponse …"],
-    "ar": ["📷 جار قراءة الرسالة …", "🔍 جار البحث عن الموعد والمبلغ …", "✍️ جار كتابة الشرح …", "🔊 جار إنشاء الصوت …", "✉️ جار كتابة الرد …"],
-    "de": ["📷 Der Brief wird gelesen …", "🔍 Frist und Betrag werden gesucht …", "✍️ Die Erklärung wird geschrieben …", "🔊 Die Audiodatei wird erstellt …", "✉️ Die Antwort wird geschrieben …"],
-}
-
+# ---------------------------------------------------------------- look & feel
 CSS = """
-.big-button button, button.big-button { font-size: 1.4rem !important; min-height: 64px; }
-.card { font-size: 1.25rem; line-height: 1.6; }
-.card code { font-size: 1.2rem; }
-.explanation { font-size: 1.15rem; line-height: 1.7; }
+:root { --amt-scale: 1; }
+.gradio-container { --amt-base: calc(20px * var(--amt-scale)); max-width: 920px !important; margin: auto; }
+/* Gradio sets its own px sizes on inner elements, so every text element gets the base size directly. */
+.gradio-container p, .gradio-container li, .gradio-container label, .gradio-container label span,
+.gradio-container input, .gradio-container textarea, .gradio-container button, .gradio-container .prose {
+  font-size: var(--amt-base) !important; line-height: 1.6 !important; }
+.gradio-container h1 { font-size: calc(var(--amt-base) * 2) !important; }
+.gradio-container h2 { font-size: calc(var(--amt-base) * 1.4) !important; margin-top: 1.2em !important; }
+.gradio-container button { min-height: 56px; }
+#go, #go button { font-size: calc(var(--amt-base) * 1.3) !important; min-height: 76px !important; }
+#lang label { padding: 12px 18px !important; }
+#lang input[type=radio] { width: 22px !important; height: 22px !important; }
+.gr-accordion { overflow: visible !important; }
+:focus-visible { outline: 4px solid #ffbf47 !important; outline-offset: 3px !important; }
+
+/* Colours forced on every child: the dark theme otherwise paints light text on the light box (contrast 1:1). */
+.todo { border-radius: 14px; padding: 18px 22px; margin: 6px 0 4px; background: #e8f1ff !important; border: 3px solid #2f6fdb; }
+.todo, .todo * { color: #08245c !important; }            /* contrast 13:1 */
+.todo.urgent { background: #ffecec !important; border-color: #c40000; }
+.todo.urgent, .todo.urgent * { color: #6b0000 !important; }  /* contrast 11:1 */
+.todo .when { font-weight: 800; font-size: calc(var(--amt-base) * 1.1) !important; margin-bottom: 4px; }
+.todo .what { font-size: calc(var(--amt-base) * 1.35) !important; line-height: 1.5; }
+#card { font-size: 1.1em; }
+#card .ref { font-family: ui-monospace, Consolas, monospace; font-size: 1.15em; letter-spacing: 0.08em; }
+#status { font-weight: 700; min-height: 1.6em; }
+#toolbar { justify-content: flex-end; gap: 8px; }
+#toolbar button { min-height: 44px; font-size: calc(var(--amt-base) * 0.85) !important; }
+
+/* High contrast: yellow on black, thick borders */
+body.amt-hc, body.amt-hc .gradio-container, body.amt-hc .gradio-container * {
+  background: #000 !important; color: #ffeb3b !important; border-color: #ffeb3b !important; }
+body.amt-hc .todo, body.amt-hc button { border: 3px solid #ffeb3b !important; }
+/* the chosen option and the main button are shown inverted: black on yellow */
+html body.amt-hc #lang label.selected, html body.amt-hc #go { background-color: #ffeb3b !important; color: #000 !important; }
+html body.amt-hc #lang label.selected *, html body.amt-hc #go * { background-color: transparent !important; color: #000 !important; }
+"""
+
+# Runs once when the page loads: remembers text size + contrast, makes status announcements audible.
+ON_LOAD_JS = """
+() => {
+  const root = document.documentElement;
+  const scale = parseFloat(localStorage.getItem('amt_scale') || '1');
+  root.style.setProperty('--amt-scale', scale);
+  if (localStorage.getItem('amt_hc') === '1') document.body.classList.add('amt-hc');
+  const setLive = () => {
+    const s = document.querySelector('#status'); if (s) { s.setAttribute('aria-live', 'polite'); s.setAttribute('role', 'status'); }
+  };
+  setLive(); setTimeout(setLive, 1500);
+
+  // Screen readers: give every control a real name (Gradio leaves some empty or uses internal values).
+  const fixNames = () => {
+    document.querySelectorAll('#lang input[type=radio]').forEach(r => {
+      const label = r.closest('label'); if (label) r.setAttribute('aria-label', label.innerText.trim());
+    });
+    document.querySelectorAll('button').forEach(b => {
+      if (b.getAttribute('aria-label') || b.innerText.trim()) return;
+      const text = (b.textContent || b.title || '').trim();
+      if (text) b.setAttribute('aria-label', text);
+    });
+  };
+  let pending = null;
+  new MutationObserver(() => { clearTimeout(pending); pending = setTimeout(fixNames, 200); })
+    .observe(document.body, { childList: true, subtree: true });
+  fixNames();
+}
+"""
+BIGGER_JS = "() => { const r=document.documentElement; let s=Math.min(1.8, parseFloat(localStorage.getItem('amt_scale')||'1')+0.15); localStorage.setItem('amt_scale', s); r.style.setProperty('--amt-scale', s); }"
+SMALLER_JS = "() => { const r=document.documentElement; let s=Math.max(0.85, parseFloat(localStorage.getItem('amt_scale')||'1')-0.15); localStorage.setItem('amt_scale', s); r.style.setProperty('--amt-scale', s); }"
+CONTRAST_JS = "() => { const on=document.body.classList.toggle('amt-hc'); localStorage.setItem('amt_hc', on ? '1' : '0'); }"
+LISTEN_AGAIN_JS = """
+() => {
+  const a = document.querySelector('#audio audio');
+  if (a) { a.currentTime = 0; a.play(); return; }
+  const b = document.querySelector('#audio button[aria-label*="Play" i], #audio button[title*="Play" i]');
+  if (b) b.click();
+}
+"""
+SET_LANG_JS = """
+(lang) => {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = (lang === 'ar') ? 'rtl' : 'ltr';
+  return lang;
+}
+"""
+FOCUS_RESULT_JS = """
+() => { setTimeout(() => { const t = document.querySelector('#todo .todo') || document.querySelector('#status');
+  if (t) { t.setAttribute('tabindex', '-1'); t.focus(); t.scrollIntoView({behavior: 'smooth', block: 'center'}); } }, 300); }
 """
 
 
-def _input_path(file_path: str | None, photo_path: str | None) -> Path | None:
-    chosen = photo_path or file_path
-    if not chosen:
-        return None
-    # Copy into a temp folder so the OCR transcription (*.ocr.txt) is written there, not next to Gradio's cache.
-    tmp = Path(tempfile.mkdtemp(prefix="amt_lotse_"))
-    target = tmp / Path(chosen).name
-    shutil.copy(chosen, target)
+def _status(text: str) -> str:
+    return f'<p dir="auto">{text}</p>'
+
+
+def _copy_input(file_path: str) -> Path:
+    # A private temp folder, so the OCR transcription (*.ocr.txt) is written there and not next to Gradio's cache.
+    target = Path(tempfile.mkdtemp(prefix="amt_lotse_")) / Path(file_path).name
+    shutil.copy(file_path, target)
     return target
 
 
-def explain_letter(file_path, photo_path, lang, read_aloud, slow, progress=gr.Progress()):
-    t = UI_TEXT[lang]
-    steps = STEPS[lang]
-    rtl = lang == "ar"
-    path = _input_path(file_path, photo_path)
-    if path is None:
-        raise gr.Error(t["no_file"])
+# ---------------------------------------------------------------- actions
+def explain_letter(file_path, lang, read_aloud, slow):
+    """Generator: every `yield` updates the page, so the status line is announced step by step."""
+    t, rtl = UI[lang], lang == "ar"
+    hidden = gr.update(visible=False)
+    # outputs: status, step3, todo, card, audio, listen_again, calendar, explanation, read_text, state
+    if not file_path:
+        yield (_status(t["no_file"]), hidden, "", "", None, hidden, hidden, "", "", None)
+        return
 
+    yield (_status(f"{t['s_read']} <small>{t['first_time']}</small>"), hidden, "", "", None, hidden, hidden, "", "", None)
     try:
-        progress(0.05, desc=steps[0])
-        a = analyze(path, on_step=lambda: progress(0.4, desc=steps[1]))
+        path = _copy_input(file_path)
+        a = analyze(path)
         if a.looks_bad:
-            audio = speak(TEXT[lang]["bad_photo"], lang, "bad_photo", slow=slow, play=False) if read_aloud else None
-            return (gr.update(value=t["bad"], rtl=rtl), gr.update(value="", rtl=rtl), audio, a.text, None)
+            audio = str(speak(TEXT[lang]["bad_photo"], lang, "bad_photo", slow=slow, play=False)) if read_aloud else None
+            bad = f'<div class="todo urgent" role="alert" dir="auto"><div class="what">{t["bad"]}</div></div>'
+            yield (_status(t["bad"]), gr.update(visible=True), bad, "", audio, gr.update(visible=bool(audio)), hidden,
+                   "", a.text, None)
+            return
 
-        progress(0.6, desc=steps[2])
+        todo, card = todo_box(a, lang), summary_card(a, lang)
+        cal = calendar_file(a, lang)
+        yield (_status(t["s_explain"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), None, hidden,
+               gr.update(value=cal, visible=bool(cal)), "", a.text, None)
+
         explanation = explain(a.text, a.info, lang).split("\n\n(⚠")[0]
-        card = summary_card(a, lang)
-
         audio = None
         if read_aloud:
-            progress(0.85, desc=steps[3])
+            yield (_status(t["s_audio"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), None, hidden,
+                   gr.update(value=cal, visible=bool(cal)), gr.update(value=explanation, rtl=rtl), a.text, None)
             facts = SpokenFacts(sender=a.info.sender, deadline=a.deadline, amount=a.amount,
                                 receives=a.receives, reference=a.reference, amount_unclear=a.amount_unclear)
             audio = str(speak(build_script(facts, explanation, lang), lang, path.stem, slow=slow, play=False))
 
         state = {"text": a.text, "info": a.info.model_dump(), "reference": a.reference}
-        return (gr.update(value=card, rtl=rtl), gr.update(value=explanation, rtl=rtl), audio, a.text, state)
-    except gr.Error:
-        raise
+        yield (_status(t["s_done"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), audio,
+               gr.update(visible=bool(audio)), gr.update(value=cal, visible=bool(cal)),
+               gr.update(value=explanation, rtl=rtl), a.text, state)
     except Exception as e:  # e.g. Ollama not running
-        raise gr.Error(t["error"].format(e=e))
+        yield (_status(t["error"].format(e=e)), hidden, "", "", None, hidden, hidden, "", "", None)
 
 
-def write_reply(state, intent, note, lang, progress=gr.Progress()):
-    progress(0.1, desc=STEPS[lang][4])
+def write_reply(state, intent, note, lang):
+    t = UI[lang]
     if not state:
-        raise gr.Error(UI_TEXT[lang]["no_file"])
+        yield "", _status(t["no_file"]), None
+        return
+    yield "", _status(t["s_reply"]), None
     from amt_lotse.extract import LetterInfo
 
     info = LetterInfo(**state["info"])
     draft = build_reply(state["text"], info, state["reference"], intent, LANGUAGES[lang], note or None)
     out = Path(tempfile.mkdtemp(prefix="amt_lotse_reply_")) / f"Antwort_{intent}.txt"
     out.write_text(draft.german, encoding="utf-8")
-    notes = draft.summary + "".join(f"\n\n⚠️ {w}" for w in draft.warnings)
-    return draft.german, gr.update(value=notes, rtl=lang == "ar"), str(out)
+    notes = "".join(f"<p>⚠️ {w}</p>" for w in draft.warnings)
+    yield draft.german, f"<p><b>{t['s_reply_done']}</b></p><p>{draft.summary}</p>{notes}", str(out)
 
 
+def switch_language(lang):
+    """Translate every label on the page."""
+    t = UI[lang]
+    rtl = lang == "ar"
+    return (
+        f"# {t['title']}\n{t['subtitle']}",
+        f"## {t['step1']}", f"## {t['step2']}", t["hint2"],
+        gr.update(label=t["file"]), gr.update(label=t["examples"]), gr.update(value=t["go"]),
+        f"## {t['step3']}", gr.update(value=t["listen_again"]), gr.update(label=t["calendar"]),
+        gr.update(label=t["read"]), gr.update(label=t["reply"]),
+        gr.update(label=t["intent"], choices=[(label, key) for key, label in t["intents"].items()]),
+        gr.update(label=t["note"], placeholder=t["note_ph"], rtl=rtl),
+        gr.update(value=t["reply_btn"]), gr.update(label=t["reply_text"]), gr.update(label=t["download"]),
+        gr.update(label=t["settings"]), gr.update(label=t["read_aloud"]), gr.update(label=t["slow"]),
+        gr.update(value="A+ " + t["bigger"]), gr.update(value="A− " + t["smaller"]), gr.update(value="◐ " + t["contrast"]),
+        t["footer"], lang,
+    )
+
+
+# ---------------------------------------------------------------- layout
 def build_ui() -> gr.Blocks:
+    t = UI["en"]
     with gr.Blocks(title="Amt-Lotse") as ui:
-        gr.Markdown("# 📬 Amt-Lotse\n**Understand German official letters — in your language, out loud, privately on this computer.**")
-
-        lang = gr.Radio(LANG_CHOICES, value="en", label="Language / Langue / اللغة / Sprache")
-
-        with gr.Row():
-            file_in = gr.File(label="Letter: photo, PDF or text", file_types=[".jpg", ".jpeg", ".png", ".pdf", ".txt"], type="filepath")
-            photo_in = gr.Image(label="…or take a photo", sources=["webcam", "upload"], type="filepath")
-
-        examples = [[str(p)] for p in EXAMPLES if p.exists()]
-        if examples:
-            gr.Examples(examples, inputs=[file_in], label="🧪 Try an example letter (fictional test data)")
-
-        with gr.Row():
-            read_aloud = gr.Checkbox(value=True, label="🔊 Read aloud")
-            slow = gr.Checkbox(value=True, label="🐢 Slow speech")
-
-        go = gr.Button("📖 Explain this letter", variant="primary", size="lg", elem_classes="big-button")
-        gr.Markdown("<small>⏳ The first time can take 1–2 minutes while the AI models load. The progress is shown below.</small>")
-
-        card = gr.Markdown(elem_classes="card")
-        audio = gr.Audio(label="🔊 Listen", autoplay=True, type="filepath")
-        explanation = gr.Markdown(elem_classes="explanation")
-        with gr.Accordion("What the computer read (for a helper to check)", open=False):
-            read_text = gr.Textbox(lines=12, show_label=False, buttons=["copy"])
-
+        saved_lang = gr.BrowserState("en", storage_key="amt_lotse_lang")
         state = gr.State()
 
-        gr.Markdown("---\n## ✉️ Write a reply in German")
-        with gr.Row():
-            intent = gr.Dropdown(REPLY_CHOICES, value="question", label="What do you want to say?")
-            note = gr.Textbox(label="Your own information (any language, optional)", placeholder="e.g. I am sick until 10 December")
-        reply_btn = gr.Button("✍️ Write reply", size="lg")
-        reply_text = gr.Textbox(label="Reply letter (German) – fill in every [placeholder]", lines=18, buttons=["copy"])
-        reply_notes = gr.Markdown()
-        reply_file = gr.File(label="Download")
+        with gr.Row(elem_id="toolbar"):
+            bigger = gr.Button("A+ " + t["bigger"], size="sm", scale=0)
+            smaller = gr.Button("A− " + t["smaller"], size="sm", scale=0)
+            contrast = gr.Button("◐ " + t["contrast"], size="sm", scale=0)
 
-        gr.Markdown("<small>Automatic summary – always double-check the original letter. Not legal advice: for important decisions, ask an advice centre (Beratungsstelle).</small>")
+        header = gr.Markdown(f"# {t['title']}\n{t['subtitle']}")
 
-        go.click(explain_letter, [file_in, photo_in, lang, read_aloud, slow],
-                 [card, explanation, audio, read_text, state])
-        reply_btn.click(write_reply, [state, intent, note, lang], [reply_text, reply_notes, reply_file])
+        step1 = gr.Markdown(f"## {t['step1']}")
+        lang = gr.Radio(LANG_CHOICES, value="en", show_label=False, elem_id="lang")
+
+        step2 = gr.Markdown(f"## {t['step2']}")
+        hint2 = gr.Markdown(t["hint2"])
+        file_in = gr.File(label=t["file"], file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"],
+                          type="filepath", elem_id="letter")
+        with gr.Accordion(t["examples"], open=False) as examples_box:
+            gr.Examples([[str(p)] for p in EXAMPLES if p.exists()], inputs=[file_in], label="")
+        go = gr.Button(t["go"], variant="primary", size="lg", elem_id="go")
+        status = gr.Markdown(elem_id="status")
+
+        with gr.Column(visible=False) as result:
+            step3 = gr.Markdown(f"## {t['step3']}")
+            todo = gr.HTML(elem_id="todo")
+            with gr.Row():
+                listen_again = gr.Button(t["listen_again"], size="lg", visible=False, elem_id="listen")
+                calendar = gr.DownloadButton(t["calendar"], size="lg", visible=False)
+            # no "share" button: these are private letters
+            audio = gr.Audio(type="filepath", autoplay=True, show_label=False, elem_id="audio", buttons=["download"])
+            card = gr.Markdown(elem_id="card")
+            explanation = gr.Markdown(elem_id="explanation")
+            with gr.Accordion(t["read"], open=False) as read_box:
+                read_text = gr.Textbox(lines=12, show_label=False, buttons=["copy"])
+            with gr.Accordion(t["reply"], open=False) as reply_box:
+                intent = gr.Dropdown([(label, key) for key, label in t["intents"].items()], value="question",
+                                     label=t["intent"])
+                note = gr.Textbox(label=t["note"], placeholder=t["note_ph"])
+                reply_btn = gr.Button(t["reply_btn"], size="lg")
+                reply_status = gr.Markdown()
+                reply_text = gr.Textbox(label=t["reply_text"], lines=16, buttons=["copy"])
+                reply_file = gr.File(label=t["download"])
+
+        with gr.Accordion(t["settings"], open=False) as settings_box:
+            read_aloud = gr.Checkbox(value=True, label=t["read_aloud"])
+            slow = gr.Checkbox(value=True, label=t["slow"])
+
+        footer = gr.Markdown(t["footer"])
+
+        # ----- events
+        translated = [header, step1, step2, hint2, file_in, examples_box, go, step3, listen_again, calendar,
+                      read_box, reply_box, intent, note, reply_btn, reply_text, reply_file, settings_box,
+                      read_aloud, slow, bigger, smaller, contrast, footer, saved_lang]
+        explain_outputs = [status, result, todo, card, audio, listen_again, calendar, explanation, read_text, state]
+
+        ui.load(None, js=ON_LOAD_JS)
+        ui.load(lambda saved: saved or "en", inputs=saved_lang, outputs=lang)
+        lang.change(switch_language, inputs=lang, outputs=translated, js=SET_LANG_JS)
+
+        run = dict(fn=explain_letter, inputs=[file_in, lang, read_aloud, slow], outputs=explain_outputs,
+                   show_progress="hidden")
+        file_in.upload(**run).then(None, js=FOCUS_RESULT_JS)   # upload = start automatically
+        go.click(**run).then(None, js=FOCUS_RESULT_JS)
+
+        reply_btn.click(write_reply, [state, intent, note, lang], [reply_text, reply_status, reply_file],
+                        show_progress="hidden")
+        listen_again.click(None, js=LISTEN_AGAIN_JS)
+        bigger.click(None, js=BIGGER_JS)
+        smaller.click(None, js=SMALLER_JS)
+        contrast.click(None, js=CONTRAST_JS)
     return ui
 
 
+# ---------------------------------------------------------------- start
 def lan_ip() -> str:
     """The computer's address in the home network, e.g. 192.168.178.23 (no data is sent)."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -175,10 +411,12 @@ def main() -> None:
                         help="also allow phones on the same Wi-Fi (asks for a password)")
     parser.add_argument("--port", type=int, default=7860)
     args = parser.parse_args()
+    theme = gr.themes.Soft(text_size=gr.themes.sizes.text_lg, primary_hue="blue")
 
     if not args.lan:
         # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
-        build_ui().launch(server_name="127.0.0.1", server_port=args.port, inbrowser=True, css=CSS)
+        build_ui().launch(server_name="127.0.0.1", server_port=args.port, inbrowser=True, css=CSS, theme=theme,
+                          footer_links=[])  # no "Use via API" / "Built with Gradio": fewer distractions
         return
 
     # LAN mode: reachable from the home network, so a password is required.
@@ -186,7 +424,7 @@ def main() -> None:
     password = os.environ.get("AMT_LOTSE_PASSWORD") or secrets.token_urlsafe(6)
     ip = lan_ip()
     print("\n" + "=" * 60)
-    print("  Open this on your phone (same Wi-Fi):")
+    print("  Open this on your phone (same Wi-Fi) — type http:// in front:")
     print(f"     http://{ip}:{args.port}")
     print("  User:      amt")
     print(f"  Password:  {password}")
@@ -195,7 +433,7 @@ def main() -> None:
     print("=" * 60 + "\n")
     build_ui().launch(server_name="0.0.0.0", server_port=args.port, auth=("amt", password),
                       auth_message="Amt-Lotse – please enter the password shown on the computer.",
-                      inbrowser=False, css=CSS)
+                      inbrowser=False, css=CSS, theme=theme, footer_links=[])
 
 
 if __name__ == "__main__":
