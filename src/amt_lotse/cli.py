@@ -4,6 +4,7 @@ Usage:
     uv run amt-lotse data/eval/mahnung_01.txt
     uv run amt-lotse data/eval/mahnung_01.txt --lang fr
     uv run amt-lotse data/eval/mahnung_01.txt --lang ar --speak     (read aloud)
+    uv run amt-lotse photo_of_letter.jpg --lang ar --speak          (photo / scan / PDF)
 """
 
 import argparse
@@ -30,8 +31,11 @@ LANGUAGES = {"en": "English", "fr": "French", "ar": "Arabic", "de": "simple Germ
 EXPLAIN_MODEL = os.environ.get("AMT_LOTSE_EXPLAIN_MODEL", "qwen2.5:7b")
 
 ARABIC_SCRIPT = re.compile(r"[\u0600-\u06FF]")
-# Qwen sometimes leaks Chinese/Japanese/Korean characters into other languages.
-CJK_SCRIPT = re.compile(r"[\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]")
+# Qwen sometimes leaks characters from other scripts (Korean, Chinese, Thai, Hindi, ...).
+# Allowed: Latin (incl. German umlauts and French accents), Arabic, digits, punctuation, € and spaces.
+FOREIGN_SCRIPT = re.compile(
+    r"[^\u0000-\u024F\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u2000-\u206F\u20AC\s]"
+)
 
 
 def safe(parse, text):
@@ -62,8 +66,10 @@ def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
                     f"You explain German official letters to international students. "
                     f"You ALWAYS answer in {language}, never in German (unless asked for German). "
                     "Write 3 to 4 short, simple sentences: who sent it, what it is about, "
-                    "exactly what the reader has to do, and what happens if they do not do it "
-                    "(only if the letter says so). "
+                    "and exactly what the reader has to do. "
+                    "If the letter says what happens if the reader does not act, explain that too. "
+                    "If the letter does not say it, do not write anything about consequences: "
+                    "never claim that nothing will happen. "
                     "Only use facts from the letter. Never add details that are not in the letter. "
                     "Write names of people, cities and companies exactly as in the letter, in Latin letters. "
                     "Keep German official terms (e.g. Krankenkasse, Bürgergeld, Mahnung) "
@@ -88,7 +94,7 @@ def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
 
 def is_in_language(text: str, lang_code: str) -> bool:
     """Cheap check that the model really answered in the requested language."""
-    if CJK_SCRIPT.search(text):
+    if FOREIGN_SCRIPT.search(text):
         return False
     if lang_code == "ar":
         return len(ARABIC_SCRIPT.findall(text)) > len(text) * 0.3
@@ -111,7 +117,7 @@ def explain(letter: str, info: LetterInfo, lang_code: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="amt-lotse", description="Explain a German official letter.")
-    parser.add_argument("letter", type=Path, help="path to a .txt file with the letter")
+    parser.add_argument("letter", type=Path, help="the letter: .txt, .pdf, or a photo (.jpg/.png)")
     parser.add_argument("--lang", choices=LANGUAGES, default="en", help="language of the explanation")
     parser.add_argument("--speak", action="store_true",
                         help="read the summary aloud (for blind and older people) and save it as .wav")
@@ -121,13 +127,34 @@ def main() -> None:
 
     if not args.letter.exists():
         sys.exit(f"File not found: {args.letter}")
-    letter = args.letter.read_text(encoding="utf-8")
+    from amt_lotse.ocr import load_letter
+
+    loaded = load_letter(args.letter)
+    letter = loaded.text
+
+    if loaded.ocr_pages:
+        # Save what the vision model read, so a helper can compare it with the paper letter.
+        ocr_path = args.letter.with_suffix(".ocr.txt")
+        ocr_path.write_text(letter, encoding="utf-8")
+        print(f"Text read from the {'scan' if loaded.source != 'ocr' else 'photo'}: {ocr_path}\n")
+
+    if loaded.looks_bad:
+        reason = "the text was cut off" if loaded.truncated else "too little text was found"
+        print(f"⚠ Could not read the whole letter ({reason}). "
+              "Take the photo again: good light, whole page, phone straight above it.")
+        if args.speak:
+            from amt_lotse.speak import TEXT, speak
+            speak(TEXT[args.lang]["bad_photo"], args.lang, args.letter.stem,
+                  slow=not args.normal_speed, play=not args.no_play)
+        sys.exit(1)
 
     print(f"Reading {args.letter.name} with {MODEL} (explanation: {EXPLAIN_MODEL}) ...\n", flush=True)
     info = extract_letter_info(letter)
 
     deadline = safe(parse_german_date, info.deadline_text) if info.recipient_has_deadline else None
     amount = safe(parse_german_amount, info.amount_text) if info.recipient_must_pay else None
+    # Never tell someone "you pay nothing" if there IS a payment we just could not read.
+    amount_unclear = info.recipient_must_pay and amount is None
     reference = normalize_reference(info.reference_number) if info.reference_number else None
 
     print("=" * 60)
@@ -139,6 +166,8 @@ def main() -> None:
         print("  Deadline:   none")
     if amount is not None:
         print(f"  You pay:    {amount:.2f} €".replace(".", ","))
+    elif amount_unclear:
+        print("  You pay:    ⚠ an amount, but it could not be read – check the letter")
     elif info.money_direction == "recipient_receives":
         print(f"  You get:    {info.amount_text} (no payment needed)")
     else:
@@ -156,6 +185,7 @@ def main() -> None:
         from amt_lotse.speak import SpokenFacts, build_script, speak
 
         facts = SpokenFacts(
+            amount_unclear=amount_unclear,
             sender=info.sender,
             deadline=deadline,
             amount=amount,

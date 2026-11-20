@@ -49,6 +49,7 @@ TEXT = {
         "pay": "You have to pay {amount}.",
         "receive": "You will receive {amount}. You do not have to pay anything.",
         "no_pay": "You do not have to pay anything.",
+        "unclear_amount": "Warning: there is an amount to pay, but I could not read it. Please check the letter with someone.",
         "reference": "Your reference number is {ref}. Always give this number.",
         "explain": "Here is the explanation.",
         "repeat": "Once again, the most important point: {action}",
@@ -56,6 +57,7 @@ TEXT = {
         "euro": "{e} euros and {c} cents",
         "euro_round": "{e} euros",
         "help": "If you are unsure, ask someone you trust or an advice centre to check the original letter.",
+        "bad_photo": "I could not read this letter well. Please take the photo again, in good light, with the whole page visible and the phone held straight above it.",
     },
     "fr": {
         "intro": "Ceci est une lettre de {sender}.",
@@ -66,6 +68,7 @@ TEXT = {
         "pay": "Vous devez payer {amount}.",
         "receive": "Vous allez recevoir {amount}. Vous n'avez rien à payer.",
         "no_pay": "Vous n'avez rien à payer.",
+        "unclear_amount": "Attention : il y a un montant à payer, mais je n'ai pas pu le lire. Vérifiez la lettre avec quelqu'un.",
         "reference": "Votre numéro de référence est {ref}. Indiquez toujours ce numéro.",
         "explain": "Voici l'explication.",
         "repeat": "Encore une fois, le plus important : {action}",
@@ -73,6 +76,7 @@ TEXT = {
         "euro": "{e} euros et {c} centimes",
         "euro_round": "{e} euros",
         "help": "En cas de doute, demandez à une personne de confiance ou à un centre de conseil de vérifier la lettre originale.",
+        "bad_photo": "Je n'ai pas bien pu lire cette lettre. Reprenez la photo avec une bonne lumière, la page entière visible et le téléphone bien au-dessus.",
     },
     "de": {
         "intro": "Das ist ein Brief von {sender}.",
@@ -83,6 +87,7 @@ TEXT = {
         "pay": "Sie müssen {amount} bezahlen.",
         "receive": "Sie bekommen {amount}. Sie müssen nichts bezahlen.",
         "no_pay": "Sie müssen nichts bezahlen.",
+        "unclear_amount": "Achtung: Es gibt einen Betrag zu bezahlen, aber ich konnte ihn nicht lesen. Bitte prüfen Sie den Brief mit jemandem.",
         "reference": "Ihre Nummer ist {ref}. Geben Sie diese Nummer immer an.",
         "explain": "Jetzt die Erklärung.",
         "repeat": "Noch einmal das Wichtigste: {action}",
@@ -90,6 +95,7 @@ TEXT = {
         "euro": "{e} Euro und {c} Cent",
         "euro_round": "{e} Euro",
         "help": "Wenn Sie unsicher sind, lassen Sie den Originalbrief von einer Vertrauensperson oder einer Beratungsstelle prüfen.",
+        "bad_photo": "Ich konnte diesen Brief nicht gut lesen. Bitte machen Sie das Foto noch einmal, bei gutem Licht, mit der ganzen Seite, und halten Sie das Handy gerade darüber.",
     },
     "ar": {
         "intro": "هذه رسالة من {sender}.",
@@ -100,6 +106,7 @@ TEXT = {
         "pay": "يجب عليك دفع {amount}.",
         "receive": "ستحصل على {amount}. لا يجب عليك دفع أي شيء.",
         "no_pay": "لا يجب عليك دفع أي شيء.",
+        "unclear_amount": "تنبيه: هناك مبلغ يجب دفعه، لكنني لم أستطع قراءته. من فضلك راجع الرسالة مع شخص ما.",
         "reference": "رقمك المرجعي هو {ref}. اذكر هذا الرقم دائما.",
         "explain": "وهذا هو الشرح.",
         "repeat": "مرة أخرى، الأهم هو: {action}",
@@ -107,6 +114,7 @@ TEXT = {
         "euro": "{e} يورو و {c} سنت",
         "euro_round": "{e} يورو",
         "help": "إذا لم تكن متأكدا، اطلب من شخص تثق به أو من مركز استشارة أن يراجع الرسالة الأصلية.",
+        "bad_photo": "لم أستطع قراءة هذه الرسالة جيدا. من فضلك التقط الصورة مرة أخرى في إضاءة جيدة، مع ظهور الصفحة كاملة، وأمسك الهاتف مستقيما فوقها.",
     },
 }
 
@@ -118,6 +126,7 @@ class SpokenFacts:
     amount: Decimal | None
     receives: Decimal | None  # amount if the recipient GETS money
     reference: str | None
+    amount_unclear: bool = False
 
 
 def say_date(d: date, lang: str) -> str:
@@ -155,6 +164,8 @@ def build_script(facts: SpokenFacts, explanation: str, lang: str) -> str:
 
     if facts.amount is not None:
         action = t["pay"].format(amount=say_amount(facts.amount, lang))
+    elif facts.amount_unclear:
+        action = t["unclear_amount"]
     elif facts.receives:
         action = t["receive"].format(amount=say_amount(facts.receives, lang))
     else:

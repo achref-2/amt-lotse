@@ -225,3 +225,5 @@ __marimo__/
 # Amt-Lotse: downloaded voice models and generated audio
 voices/
 audio/
+# OCR transcriptions created next to photos/PDFs
+*.ocr.txt

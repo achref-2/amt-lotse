@@ -9,8 +9,10 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "ollama>=0.6.3",
+    "pillow>=13.0.0",
     "piper-tts>=1.8.0",
     "pydantic>=2.14.4",
+    "pymupdf>=2.1",
 ]
 
 [project.scripts]

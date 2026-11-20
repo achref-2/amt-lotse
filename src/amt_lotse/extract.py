@@ -24,6 +24,14 @@ CREDIT_WORDS = re.compile(
     re.IGNORECASE,
 )
 
+# A clear request to pay: "Bitte überweisen Sie ...", "zahlen Sie ...", "... ist zu zahlen".
+PAY_REQUEST = re.compile(
+    r"\b(überweisen|zahlen|bezahlen|begleichen|entrichten)\s+sie\b"
+    r"|\bzu\s+(zahlen|bezahlen|überweisen|entrichten)\b",
+    re.IGNORECASE,
+)
+AMOUNT_PATTERN = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}\s*(?:€|EUR|Euro)?")
+
 client = ollama.Client(timeout=TIMEOUT_SECONDS)
 
 
@@ -99,6 +107,23 @@ def amount_is_credit(letter: str, amount_text: str) -> bool:
     return False
 
 
+def find_payment_request(letter: str) -> str | None:
+    """Return the amount from a sentence that asks the reader to pay, e.g. '312,00 €'.
+
+    Looks at the line with the request and the previous non-empty line (sentences often
+    wrap, and the amount is often named just before "Bitte überweisen Sie den Betrag ...").
+    The amount on the request line itself wins.
+    """
+    lines = [line for line in letter.splitlines() if line.strip()]
+    for i, line in enumerate(lines):
+        if PAY_REQUEST.search(line):
+            for candidate in (line, lines[i - 1] if i > 0 else ""):
+                amounts = AMOUNT_PATTERN.findall(candidate)
+                if amounts:
+                    return amounts[-1].strip()
+    return None
+
+
 def normalize_reference(text: str) -> str:
     """Strip a label from a reference number: 'Kundennummer: 7788990' -> '7788990'."""
     return REF_LABEL.sub("", text).strip()
@@ -117,9 +142,14 @@ def parse_german_date(text: str) -> date:
 
 
 def parse_german_amount(text: str) -> Decimal:
-    """Convert a German amount like '1.234,56 €' to Decimal('1234.56')."""
-    cleaned = text.replace("€", "").replace("EUR", "").replace(".", "").replace(",", ".").strip()
-    return Decimal(cleaned)
+    """Convert a German amount like '1.234,56 €' to Decimal('1234.56').
+
+    Works even if the € sign is missing or garbled (e.g. '312,00 ?' from a bad PDF/OCR).
+    """
+    match = re.search(r"\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+", text)
+    if match is None:
+        raise ValueError(f"No amount found in: {text!r}")
+    return Decimal(match.group().replace(".", "").replace(",", "."))
 
 
 def extract_letter_info(letter: str) -> LetterInfo:
@@ -142,10 +172,16 @@ def extract_letter_info(letter: str) -> LetterInfo:
     )
     info = LetterInfo.model_validate_json(response["message"]["content"])
 
-    # Safety net: small models sometimes call a refund a payment.
-    # If the letter itself puts the amount next to "Guthaben"/"Erstattung", trust the letter.
+    # Safety nets: the small model is unreliable on WHO pays. The letter's own wording decides.
+    # 1) Amount next to "Guthaben"/"Erstattung" -> the recipient gets money.
     if info.amount_text and amount_is_credit(letter, info.amount_text):
         info.money_direction = "recipient_receives"
+        return info
+    # 2) A clear request to pay with an amount -> the recipient pays that amount.
+    requested = find_payment_request(letter)
+    if requested and not amount_is_credit(letter, requested):
+        info.money_direction = "recipient_pays"
+        info.amount_text = requested
     return info
 
 
