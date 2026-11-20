@@ -1,0 +1,18 @@
+# For people who already run Ollama on their computer (no second 10 GB download).
+#   ollama pull qwen2.5:3b && ollama pull qwen2.5:7b && ollama pull qwen2.5vl:3b
+#   docker compose -f docker-compose.host-ollama.yml up
+services:
+  app:
+    build: .
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux; Docker Desktop has it already
+    ports:
+      - "127.0.0.1:7860:7860"
+    volumes:
+      - voices:/app/voices
+    restart: unless-stopped
+
+volumes:
+  voices:

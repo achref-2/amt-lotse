@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+**/__pycache__
+audio
+voices
+replies
+eval_results
+**/*.ocr.txt
+*.wav
+.env

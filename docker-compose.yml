@@ -1,0 +1,52 @@
+# One command:   docker compose up
+# Then open:     http://127.0.0.1:7860
+#
+# First start downloads ~10 GB of models (once). They are kept in the "ollama" volume.
+# NVIDIA GPU:    docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+# Ollama already installed on your computer? Use docker-compose.host-ollama.yml instead.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+  # Runs once: downloads the three models, then exits.
+  models:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for m in qwen2.5:3b qwen2.5:7b qwen2.5vl:3b; do
+          echo "Model $$m ..."; ollama pull $$m || exit 1
+        done
+        echo "All models ready."
+    restart: "no"
+
+  app:
+    build: .
+    depends_on:
+      models:
+        condition: service_completed_successfully
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    ports:
+      - "127.0.0.1:7860:7860"   # only this computer can open the UI
+    volumes:
+      - voices:/app/voices      # TTS voices, downloaded once
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  voices:

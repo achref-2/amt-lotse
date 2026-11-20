@@ -1,0 +1,11 @@
+# Use an NVIDIA GPU for the models (needs the NVIDIA driver; on Windows: Docker Desktop with WSL 2).
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

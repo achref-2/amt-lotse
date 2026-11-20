@@ -410,12 +410,15 @@ def main() -> None:
     parser.add_argument("--lan", action="store_true",
                         help="also allow phones on the same Wi-Fi (asks for a password)")
     parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="network interface; Docker uses 0.0.0.0 (the port is still published only to this computer)")
     args = parser.parse_args()
     theme = gr.themes.Soft(text_size=gr.themes.sizes.text_lg, primary_hue="blue")
 
     if not args.lan:
         # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
-        build_ui().launch(server_name="127.0.0.1", server_port=args.port, inbrowser=True, css=CSS, theme=theme,
+        build_ui().launch(server_name=args.host, server_port=args.port, inbrowser=args.host == "127.0.0.1",
+                          css=CSS, theme=theme,
                           footer_links=[])  # no "Use via API" / "Built with Gradio": fewer distractions
         return
 

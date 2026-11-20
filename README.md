@@ -91,7 +91,25 @@ Language choice, photo/PDF upload or webcam, one-click example letters, a big "E
 step-by-step progress, auto-playing audio, a "what the computer read" panel for a helper to check,
 and the reply drafts with copy and download.
 
-## Quick start
+## Install with Docker (one command)
+Needs [Docker Desktop](https://www.docker.com/products/docker-desktop/). Everything stays on your computer.
+
+```bash
+docker compose up --build
+```
+Then open http://127.0.0.1:7860. The first start downloads ~10 GB of models once (kept in a Docker volume).
+
+| Situation | Command |
+|---|---|
+| Nothing installed except Docker | `docker compose up --build` |
+| NVIDIA graphics card | `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build` |
+| Ollama already installed on your computer (no second download) | `docker compose -f docker-compose.host-ollama.yml up --build` |
+
+The UI port is published on `127.0.0.1` only. A typical real-world setup: one machine at an advice centre or care home runs Amt-Lotse in Docker, and people use it from their phones over the local Wi-Fi.
+
+Tips: on Windows, move Docker's disk image to a drive with space (*Settings → Resources → Advanced → Disk image location*). If Ollama crashes with a CUDA error while switching models, set `OLLAMA_MAX_LOADED_MODELS=1`.
+
+## Quick start (without Docker)
 Requirements: Python 3.14+, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com)
 
 ```bash
@@ -202,4 +220,5 @@ What the extraction eval taught us:
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
-- [ ] Voice input, MCP server + agent, Docker
+- [x] Docker: one-command install (`docker compose up`)
+- [ ] MCP server, voice input
