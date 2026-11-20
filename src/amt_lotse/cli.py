@@ -1,0 +1,177 @@
+"""Amt-Lotse command line: explain a German official letter in simple words.
+
+Usage:
+    uv run amt-lotse data/eval/mahnung_01.txt
+    uv run amt-lotse data/eval/mahnung_01.txt --lang fr
+    uv run amt-lotse data/eval/mahnung_01.txt --lang ar --speak     (read aloud)
+"""
+
+import argparse
+import os
+import re
+import sys
+from datetime import date
+from pathlib import Path
+
+from amt_lotse.extract import (
+    MODEL,
+    LetterInfo,
+    client,
+    extract_letter_info,
+    normalize_reference,
+    parse_german_amount,
+    parse_german_date,
+)
+
+LANGUAGES = {"en": "English", "fr": "French", "ar": "Arabic", "de": "simple German (A2 level)"}
+
+# Extraction works well with 3B, but writing in other languages needs a bigger model.
+# Override with: $env:AMT_LOTSE_EXPLAIN_MODEL="qwen2.5:3b"
+EXPLAIN_MODEL = os.environ.get("AMT_LOTSE_EXPLAIN_MODEL", "qwen2.5:7b")
+
+ARABIC_SCRIPT = re.compile(r"[\u0600-\u06FF]")
+# Qwen sometimes leaks Chinese/Japanese/Korean characters into other languages.
+CJK_SCRIPT = re.compile(r"[\u3040-\u30FF\u3400-\u9FFF\uAC00-\uD7AF]")
+
+
+def safe(parse, text):
+    if not text:
+        return None
+    try:
+        return parse(text)
+    except (ValueError, ArithmeticError):
+        return None
+
+
+def days_left_text(deadline: date) -> str:
+    days = (deadline - date.today()).days
+    if days < 0:
+        return f"⚠ {-days} days OVERDUE"
+    if days == 0:
+        return "⚠ TODAY"
+    return f"in {days} days"
+
+
+def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
+    response = client.chat(
+        model=EXPLAIN_MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    f"You explain German official letters to international students. "
+                    f"You ALWAYS answer in {language}, never in German (unless asked for German). "
+                    "Write 3 to 4 short, simple sentences: who sent it, what it is about, "
+                    "exactly what the reader has to do, and what happens if they do not do it "
+                    "(only if the letter says so). "
+                    "Only use facts from the letter. Never add details that are not in the letter. "
+                    "Write names of people, cities and companies exactly as in the letter, in Latin letters. "
+                    "Keep German official terms (e.g. Krankenkasse, Bürgergeld, Mahnung) "
+                    "and add a short explanation in brackets."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Letter:\n\n{letter}\n\n"
+                    f"Facts (trust these): deadline={info.deadline_text}, "
+                    f"amount={info.amount_text if info.recipient_must_pay else None}, "
+                    f"money_direction={info.money_direction}.\n\n"
+                    f"Now explain this letter in {language}. Answer only in {language}."
+                ),
+            },
+        ],
+        options={"temperature": 0},
+    )
+    return response["message"]["content"].strip()
+
+
+def is_in_language(text: str, lang_code: str) -> bool:
+    """Cheap check that the model really answered in the requested language."""
+    if CJK_SCRIPT.search(text):
+        return False
+    if lang_code == "ar":
+        return len(ARABIC_SCRIPT.findall(text)) > len(text) * 0.3
+    if lang_code in ("en", "fr"):
+        german_markers = len(re.findall(r"\b(der|die|das|und|ist|nicht|wird|Sie)\b", text))
+        return german_markers < 3
+    return True
+
+
+def explain(letter: str, info: LetterInfo, lang_code: str) -> str:
+    """Second LLM call: a short, friendly explanation. Retries once if the language is wrong."""
+    language = LANGUAGES[lang_code]
+    text = ask_explanation(letter, info, language)
+    if not is_in_language(text, lang_code):
+        text = ask_explanation(letter, info, language)
+    if not is_in_language(text, lang_code):
+        text += f"\n\n(⚠ The model did not answer in {language}. Try a bigger model.)"
+    return text
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="amt-lotse", description="Explain a German official letter.")
+    parser.add_argument("letter", type=Path, help="path to a .txt file with the letter")
+    parser.add_argument("--lang", choices=LANGUAGES, default="en", help="language of the explanation")
+    parser.add_argument("--speak", action="store_true",
+                        help="read the summary aloud (for blind and older people) and save it as .wav")
+    parser.add_argument("--normal-speed", action="store_true", help="speak at normal speed (default: slower)")
+    parser.add_argument("--no-play", action="store_true", help="only save the .wav file, do not play it")
+    args = parser.parse_args()
+
+    if not args.letter.exists():
+        sys.exit(f"File not found: {args.letter}")
+    letter = args.letter.read_text(encoding="utf-8")
+
+    print(f"Reading {args.letter.name} with {MODEL} (explanation: {EXPLAIN_MODEL}) ...\n", flush=True)
+    info = extract_letter_info(letter)
+
+    deadline = safe(parse_german_date, info.deadline_text) if info.recipient_has_deadline else None
+    amount = safe(parse_german_amount, info.amount_text) if info.recipient_must_pay else None
+    reference = normalize_reference(info.reference_number) if info.reference_number else None
+
+    print("=" * 60)
+    print(f"  From:       {info.sender}")
+    print(f"  Subject:    {info.subject}")
+    if deadline:
+        print(f"  Deadline:   {deadline:%d.%m.%Y}  ({days_left_text(deadline)})")
+    else:
+        print("  Deadline:   none")
+    if amount is not None:
+        print(f"  You pay:    {amount:.2f} €".replace(".", ","))
+    elif info.money_direction == "recipient_receives":
+        print(f"  You get:    {info.amount_text} (no payment needed)")
+    else:
+        print("  You pay:    nothing")
+    if reference:
+        print(f"  Reference:  {reference}  (always quote this number)")
+    print("=" * 60)
+
+    print("\nWhat this means:\n", flush=True)
+    explanation = explain(letter, info, args.lang)
+    print(explanation)
+    print("\n(Automatic summary – always double-check the original letter.)")
+
+    if args.speak:
+        from amt_lotse.speak import SpokenFacts, build_script, speak
+
+        facts = SpokenFacts(
+            sender=info.sender,
+            deadline=deadline,
+            amount=amount,
+            receives=(
+                safe(parse_german_amount, info.amount_text)
+                if info.money_direction == "recipient_receives"
+                else None
+            ),
+            reference=reference,
+        )
+        script = build_script(facts, explanation.split("\n\n(⚠")[0], args.lang)
+        print("\nCreating audio ...", flush=True)
+        path = speak(script, args.lang, args.letter.stem,
+                     slow=not args.normal_speed, play=not args.no_play)
+        print(f"Audio saved: {path}")
+
+
+if __name__ == "__main__":
+    main()

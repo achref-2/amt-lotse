@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Amt-Lotse: downloaded voice models and generated audio
+voices/
+audio/
