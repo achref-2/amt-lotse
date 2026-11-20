@@ -227,3 +227,5 @@ voices/
 audio/
 # OCR transcriptions created next to photos/PDFs
 *.ocr.txt
+# Generated reply drafts (contain personal data once filled in)
+replies/

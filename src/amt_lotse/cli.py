@@ -5,6 +5,7 @@ Usage:
     uv run amt-lotse data/eval/mahnung_01.txt --lang fr
     uv run amt-lotse data/eval/mahnung_01.txt --lang ar --speak     (read aloud)
     uv run amt-lotse photo_of_letter.jpg --lang ar --speak          (photo / scan / PDF)
+    uv run amt-lotse data/eval/mahnung_01.txt --reply installments   (draft a German reply)
 """
 
 import argparse
@@ -123,6 +124,10 @@ def main() -> None:
                         help="read the summary aloud (for blind and older people) and save it as .wav")
     parser.add_argument("--normal-speed", action="store_true", help="speak at normal speed (default: slower)")
     parser.add_argument("--no-play", action="store_true", help="only save the .wav file, do not play it")
+    parser.add_argument("--reply", choices=["more-time", "installments", "already-paid", "reschedule", "question"],
+                        help="also draft a reply letter in formal German")
+    parser.add_argument("--note", help="your own information for the reply, in any language "
+                                       "(e.g. 'I am sick until 10 December')")
     args = parser.parse_args()
 
     if not args.letter.exists():
@@ -180,6 +185,24 @@ def main() -> None:
     explanation = explain(letter, info, args.lang)
     print(explanation)
     print("\n(Automatic summary – always double-check the original letter.)")
+
+    if args.reply:
+        from amt_lotse.reply import build_reply
+
+        print("\nWriting a reply draft ...", flush=True)
+        draft = build_reply(letter, info, reference, args.reply, LANGUAGES[args.lang], args.note)
+        reply_dir = Path(__file__).resolve().parents[2] / "replies"
+        reply_dir.mkdir(exist_ok=True)
+        reply_path = reply_dir / f"{args.letter.stem}_{args.reply}.txt"
+        reply_path.write_text(draft.german, encoding="utf-8")
+
+        print("\n" + "-" * 60)
+        print(draft.german)
+        print("-" * 60)
+        print(f"\n{draft.summary}")
+        for warning in draft.warnings:
+            print(f"⚠ {warning}")
+        print(f"\nReply saved: {reply_path}")
 
     if args.speak:
         from amt_lotse.speak import SpokenFacts, build_script, speak

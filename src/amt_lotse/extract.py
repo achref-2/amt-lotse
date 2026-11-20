@@ -30,6 +30,11 @@ PAY_REQUEST = re.compile(
     r"|\bzu\s+(zahlen|bezahlen|überweisen|entrichten)\b",
     re.IGNORECASE,
 )
+# A price per unit is information, not a bill: "0,32 € pro kWh", "18,36 € monatlich", "12 €/Stunde".
+RATE_PATTERN = re.compile(
+    r"\b(pro|je)\s+\w+|/\s*(kwh|monat|jahr|stunde|tag|liter|m²|m2|qm)\b|\b(monatlich|jährlich|stündlich)\b",
+    re.IGNORECASE,
+)
 AMOUNT_PATTERN = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}\s*(?:€|EUR|Euro)?")
 
 client = ollama.Client(timeout=TIMEOUT_SECONDS)
@@ -182,6 +187,16 @@ def extract_letter_info(letter: str) -> LetterInfo:
     if requested and not amount_is_credit(letter, requested):
         info.money_direction = "recipient_pays"
         info.amount_text = requested
+        return info
+    # 3) The model says "pays", but the letter contains no euro amount at all -> nothing to pay.
+    if info.money_direction == "recipient_pays" and not AMOUNT_PATTERN.search(letter):
+        info.money_direction = "no_payment"
+        info.amount_text = None
+        return info
+    # 4) No request to pay, and the model's "amount" is a rate (e.g. "0,32 € pro kWh") -> no bill.
+    if info.money_direction == "recipient_pays" and info.amount_text and RATE_PATTERN.search(info.amount_text):
+        info.money_direction = "no_payment"
+        info.amount_text = None
     return info
 
 
