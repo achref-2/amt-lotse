@@ -16,6 +16,13 @@ Requirement :Pyhton 3.12+, [uv](https://docs.astral.sh/uv/),[Ollama]
 Ollama pull qwen2.5:7b
 uv sync
 uv run python src/amt_lotse/hello_llm.py
+ ## Evaluation
+`uv run python -m amt_lotse.evaluate` scores the extractor against hand-labelled letters in `data/eval/`.
+
+| Model | Fields correct | Time (4 letters) |
+|---|---|---|
+| qwen2.5:3b | 12/12 | 16 s |
+| qwen2.5:7b | 12/12 | 79 s |
 
 ## Roadmap
  - [x] Local LLM reads a sample letter
