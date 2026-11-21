@@ -17,6 +17,7 @@ dependencies = [
     "piper-tts>=1.8.0",
     "pydantic>=2.14.4",
     "pymupdf>=2.1",
+    "qrcode>=8.2",
 ]
 
 [project.scripts]

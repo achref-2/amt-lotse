@@ -3,6 +3,7 @@
 Start:
     uv run amt-lotse-ui          # only this computer: http://127.0.0.1:7860
     uv run amt-lotse-ui --lan    # also your phone on the same Wi-Fi (password protected)
+    uv run amt-lotse-ui --tailscale   # phone app with HTTPS, also away from home (see README)
 
 Design rules
 - Three steps only: 1 language, 2 letter, 3 result. Everything else is folded away.
@@ -16,10 +17,13 @@ Design rules
 """
 
 import argparse
+import json
 import os
 import secrets
 import shutil
 import socket
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -37,6 +41,7 @@ EXAMPLES = [  # fictional test letters, safe to show
     PROJECT_ROOT / "data" / "photos" / "finanzamt_02_digital.pdf",
     PROJECT_ROOT / "data" / "eval" / "krankenkasse_02.txt",
 ]
+ICON = Path(__file__).resolve().parent / "static" / "icon.png"
 LANG_CHOICES = [("English", "en"), ("Français", "fr"), ("العربية", "ar"), ("Deutsch (einfach)", "de")]
 
 # ---------------------------------------------------------------- all visible text, per language
@@ -45,7 +50,7 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "Understand letters from German offices — in your language, read aloud, privately on this computer.",
         "step1": "1. Choose your language", "step2": "2. Your letter",
         "hint2": "Take a photo of the letter with your phone, or choose a file (photo, PDF or text). The explanation starts by itself.",
-        "file": "Letter", "examples": "Try it with an example letter (not a real letter)",
+        "file": "Letter", "camera": "📷 Take a photo of the letter", "examples": "Try it with an example letter (not a real letter)",
         "go": "Explain the letter", "step3": "3. Result",
         "listen_again": "Listen again", "calendar": "Add the deadline to my calendar",
         "read": "What the computer read (for a helper to check)",
@@ -69,7 +74,7 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "Comprendre les lettres des administrations allemandes — dans votre langue, à voix haute, en privé sur cet ordinateur.",
         "step1": "1. Choisissez votre langue", "step2": "2. Votre lettre",
         "hint2": "Prenez la lettre en photo avec votre téléphone, ou choisissez un fichier (photo, PDF ou texte). L'explication démarre toute seule.",
-        "file": "Lettre", "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
+        "file": "Lettre", "camera": "📷 Photographier la lettre", "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
         "go": "Expliquer la lettre", "step3": "3. Résultat",
         "listen_again": "Écouter encore", "calendar": "Ajouter la date limite à mon agenda",
         "read": "Ce que l'ordinateur a lu (pour vérification par une autre personne)",
@@ -93,7 +98,7 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "افهم رسائل الإدارات الألمانية — بلغتك، بصوت مسموع، وبخصوصية تامة على هذا الحاسوب.",
         "step1": "الخطوة 1: اختر لغتك", "step2": "الخطوة 2: رسالتك",
         "hint2": "التقط صورة للرسالة بهاتفك، أو اختر ملفا: صورة أو ملف PDF أو نص. يبدأ الشرح تلقائيا.",
-        "file": "الرسالة", "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
+        "file": "الرسالة", "camera": "📷 صوّر الرسالة", "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
         "go": "اشرح الرسالة", "step3": "الخطوة 3: النتيجة",
         "listen_again": "استمع مرة أخرى", "calendar": "أضف الموعد النهائي إلى تقويمي",
         "read": "ما قرأه الحاسوب (ليتحقق منه شخص آخر)",
@@ -117,7 +122,7 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "Briefe von Ämtern verstehen — in Ihrer Sprache, vorgelesen, privat auf diesem Computer.",
         "step1": "1. Sprache wählen", "step2": "2. Ihr Brief",
         "hint2": "Machen Sie mit dem Handy ein Foto vom Brief, oder wählen Sie eine Datei (Foto, PDF oder Text). Die Erklärung startet von selbst.",
-        "file": "Brief", "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
+        "file": "Brief", "camera": "📷 Brief fotografieren", "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
         "go": "Brief erklären", "step3": "3. Ergebnis",
         "listen_again": "Noch einmal anhören", "calendar": "Frist in meinen Kalender eintragen",
         "read": "Was der Computer gelesen hat (zum Prüfen durch eine Hilfsperson)",
@@ -151,6 +156,15 @@ CSS = """
 .gradio-container h2 { font-size: calc(var(--amt-base) * 1.4) !important; margin-top: 1.2em !important; }
 .gradio-container button { min-height: 56px; }
 #go, #go button { font-size: calc(var(--amt-base) * 1.3) !important; min-height: 76px !important; }
+#camera { font-size: calc(var(--amt-base) * 1.2) !important; min-height: 72px !important; }
+/* phones: no wasted space at the sides, everything one thumb away */
+@media (max-width: 600px) {
+  .gradio-container { padding: 8px !important; }
+  #toolbar { flex-direction: row !important; flex-wrap: nowrap !important; gap: 6px !important; }
+  #toolbar > *, #toolbar button { min-width: 0 !important; flex: 1 1 0 !important; }
+  #toolbar button { padding: 4px 6px !important; font-size: calc(var(--amt-base) * 0.72) !important; white-space: normal; }
+  .gradio-container h1 { font-size: calc(var(--amt-base) * 1.6) !important; margin-top: 4px !important; }
+}
 #lang label { padding: 12px 18px !important; }
 #lang input[type=radio] { width: 22px !important; height: 22px !important; }
 .gr-accordion { overflow: visible !important; }
@@ -176,6 +190,33 @@ body.amt-hc .todo, body.amt-hc button { border: 3px solid #ffeb3b !important; }
 /* the chosen option and the main button are shown inverted: black on yellow */
 html body.amt-hc #lang label.selected, html body.amt-hc #go { background-color: #ffeb3b !important; color: #000 !important; }
 html body.amt-hc #lang label.selected *, html body.amt-hc #go * { background-color: transparent !important; color: #000 !important; }
+"""
+
+# Phone app (PWA): name, colours and icon for the home screen. Gradio adds manifest.json itself (pwa=True).
+HEAD = """
+<meta name="theme-color" content="#1f5fd1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Amt-Lotse">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="pwa_icon/180">
+"""
+
+# The big camera button: opens the phone's back camera straight away, using the same upload box,
+# so the explanation starts by itself. On a computer the same button just opens the file chooser.
+CAMERA_JS = """
+() => {
+  const input = document.querySelector('#letter input[type=file]');
+  if (!input) return;
+  const accept = input.getAttribute('accept');
+  input.setAttribute('accept', 'image/*');
+  input.setAttribute('capture', 'environment');
+  input.click();
+  setTimeout(() => {          // put the box back to normal: photos, PDFs and text files
+    input.removeAttribute('capture');
+    if (accept) input.setAttribute('accept', accept); else input.removeAttribute('accept');
+  }, 1000);
+}
 """
 
 # Runs once when the page loads: remembers text size + contrast, makes status announcements audible.
@@ -308,7 +349,7 @@ def switch_language(lang):
     return (
         f"# {t['title']}\n{t['subtitle']}",
         f"## {t['step1']}", f"## {t['step2']}", t["hint2"],
-        gr.update(label=t["file"]), gr.update(label=t["examples"]), gr.update(value=t["go"]),
+        gr.update(value=t["camera"]), gr.update(label=t["file"]), gr.update(label=t["examples"]), gr.update(value=t["go"]),
         f"## {t['step3']}", gr.update(value=t["listen_again"]), gr.update(label=t["calendar"]),
         gr.update(label=t["read"]), gr.update(label=t["reply"]),
         gr.update(label=t["intent"], choices=[(label, key) for key, label in t["intents"].items()]),
@@ -339,6 +380,7 @@ def build_ui() -> gr.Blocks:
 
         step2 = gr.Markdown(f"## {t['step2']}")
         hint2 = gr.Markdown(t["hint2"])
+        camera = gr.Button(t["camera"], variant="primary", size="lg", elem_id="camera")
         file_in = gr.File(label=t["file"], file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"],
                           type="filepath", elem_id="letter")
         with gr.Accordion(t["examples"], open=False) as examples_box:
@@ -374,7 +416,7 @@ def build_ui() -> gr.Blocks:
         footer = gr.Markdown(t["footer"])
 
         # ----- events
-        translated = [header, step1, step2, hint2, file_in, examples_box, go, step3, listen_again, calendar,
+        translated = [header, step1, step2, hint2, camera, file_in, examples_box, go, step3, listen_again, calendar,
                       read_box, reply_box, intent, note, reply_btn, reply_text, reply_file, settings_box,
                       read_aloud, slow, bigger, smaller, contrast, footer, saved_lang]
         explain_outputs = [status, result, todo, card, audio, listen_again, calendar, explanation, read_text, state]
@@ -390,6 +432,7 @@ def build_ui() -> gr.Blocks:
 
         reply_btn.click(write_reply, [state, intent, note, lang], [reply_text, reply_status, reply_file],
                         show_progress="hidden")
+        camera.click(None, js=CAMERA_JS)
         listen_again.click(None, js=LISTEN_AGAIN_JS)
         bigger.click(None, js=BIGGER_JS)
         smaller.click(None, js=SMALLER_JS)
@@ -405,38 +448,100 @@ def lan_ip() -> str:
         return s.getsockname()[0]
 
 
+def print_phone_link(url: str, password: str) -> None:
+    """The address as text and as a QR code: point the phone camera at the screen, no typing."""
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")  # Windows terminals need this for the QR blocks
+    except (AttributeError, ValueError):
+        pass
+    print("\n" + "=" * 60)
+    print("  On your phone, scan this code with the camera, or type the address:")
+    print(f"     {url}")
+    try:
+        import io
+
+        import qrcode
+
+        qr = qrcode.QRCode(border=2)
+        qr.add_data(url)
+        qr.make()
+        out = io.StringIO()
+        qr.print_ascii(out=out, invert=True)
+        print(out.getvalue())
+    except Exception:  # no QR in this terminal: the address above is enough
+        pass
+    print("  User:      amt")
+    print(f"  Password:  {password}")
+    print("\n  Install it as an app: browser menu > 'Add to Home screen' / 'Install app'.")
+    print("  Only use this in a network you trust (your home Wi-Fi), not in public Wi-Fi.")
+    print("=" * 60 + "\n")
+
+
+def tailscale_url(port: int) -> str | None:
+    """https://<this-computer>.<your-tailnet>.ts.net if Tailscale is installed and 'tailscale serve' is set up."""
+    try:
+        status = json.loads(subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True,
+                                           timeout=5).stdout)
+        name = status["Self"]["DNSName"].rstrip(".")
+        return f"https://{name}" if name else None
+    except Exception:
+        return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="amt-lotse-ui")
     parser.add_argument("--lan", action="store_true",
                         help="also allow phones on the same Wi-Fi (asks for a password)")
+    parser.add_argument("--tailscale", action="store_true",
+                        help="phone app over Tailscale: HTTPS, installable, also away from home (asks for a password)")
+    parser.add_argument("--cert", help="HTTPS certificate for --lan (e.g. made with mkcert), so the phone can install the app")
+    parser.add_argument("--key", help="private key that belongs to --cert")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--host", default="127.0.0.1",
                         help="network interface; Docker uses 0.0.0.0 (the port is still published only to this computer)")
     args = parser.parse_args()
-    theme = gr.themes.Soft(text_size=gr.themes.sizes.text_lg, primary_hue="blue")
+    if bool(args.cert) != bool(args.key):
+        parser.error("--cert and --key belong together")
 
-    if not args.lan:
+    theme = gr.themes.Soft(text_size=gr.themes.sizes.text_lg, primary_hue="blue")
+    # pwa=True: Gradio serves manifest.json, so phones can add Amt-Lotse to the home screen like an app
+    common = dict(server_port=args.port, css=CSS, theme=theme, head=HEAD, favicon_path=str(ICON), pwa=True,
+                  footer_links=[])  # no "Use via API" / "Built with Gradio": fewer distractions
+
+    if not (args.lan or args.tailscale):
         # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
-        build_ui().launch(server_name=args.host, server_port=args.port, inbrowser=args.host == "127.0.0.1",
-                          css=CSS, theme=theme,
-                          footer_links=[])  # no "Use via API" / "Built with Gradio": fewer distractions
+        build_ui().launch(server_name=args.host, inbrowser=args.host == "127.0.0.1", **common)
         return
 
-    # LAN mode: reachable from the home network, so a password is required.
-    # Letters still never leave your network: the phone sends the photo to THIS computer only.
+    # Phone modes are reachable from other devices, so a password is always required.
+    # Letters still never go to a cloud service: the phone sends the photo to THIS computer only.
     password = os.environ.get("AMT_LOTSE_PASSWORD") or secrets.token_urlsafe(6)
-    ip = lan_ip()
-    print("\n" + "=" * 60)
-    print("  Open this on your phone (same Wi-Fi) — type http:// in front:")
-    print(f"     http://{ip}:{args.port}")
-    print("  User:      amt")
-    print(f"  Password:  {password}")
-    print("\n  On the phone, tap the upload box and choose 'Camera' to photograph a letter.")
-    print("  Only use this in a network you trust (your home Wi-Fi), not in public Wi-Fi.")
-    print("=" * 60 + "\n")
-    build_ui().launch(server_name="0.0.0.0", server_port=args.port, auth=("amt", password),
-                      auth_message="Amt-Lotse – please enter the password shown on the computer.",
-                      inbrowser=False, css=CSS, theme=theme, footer_links=[])
+    auth = dict(auth=("amt", password), auth_message="Amt-Lotse – please enter the password shown on the computer.",
+                inbrowser=False)
+
+    if args.tailscale:
+        # Tailscale gives this computer a private HTTPS address that only your own devices can open,
+        # at home and on the way. Amt-Lotse itself stays on 127.0.0.1; 'tailscale serve' passes the traffic on.
+        url = tailscale_url(args.port)
+        print(f"\n  First time only, run this once in another terminal:   tailscale serve --bg {args.port}")
+        if not url:
+            print("  Tailscale was not found. Install it from https://tailscale.com/download on this computer")
+            print("  and on the phone, sign in with the same account, then start again.")
+            url = "https://<this-computer>.<your-tailnet>.ts.net"
+        print_phone_link(url, password)
+        build_ui().launch(server_name="127.0.0.1", **auth, **common)
+        return
+
+    scheme = "https" if args.cert else "http"
+    url = f"{scheme}://{lan_ip()}:{args.port}"
+    print_phone_link(url, password)
+    if not args.cert:
+        print("  Note: without HTTPS the phone opens Amt-Lotse in the browser; it can't be installed as a full app.")
+        print("  For the full app use --tailscale, or --cert/--key (README, 'Phone app').\n")
+    # ssl_verify=False only affects Gradio's start-up check of its own address: a certificate made for the
+    # Wi-Fi address (mkcert) doesn't match "localhost". The phone still checks the certificate normally.
+    ssl = dict(ssl_certfile=args.cert, ssl_keyfile=args.key, ssl_verify=False) if args.cert else {}
+    build_ui().launch(server_name="0.0.0.0", **auth, **ssl, **common)
 
 
 if __name__ == "__main__":

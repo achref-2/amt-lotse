@@ -82,14 +82,34 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
 
 ## Web UI
 ```bash
-uv run amt-lotse-ui          # opens http://127.0.0.1:7860 — only reachable from this computer
-uv run amt-lotse-ui --lan    # also reachable from your phone on the same Wi-Fi (password protected)
+uv run amt-lotse-ui              # opens http://127.0.0.1:7860 — only reachable from this computer
+uv run amt-lotse-ui --lan        # also from your phone on the same Wi-Fi (password protected)
+uv run amt-lotse-ui --tailscale  # phone app with HTTPS, at home and on the way (password protected)
 ```
 
-**From a phone:** with `--lan`, the terminal shows an address like `http://192.168.178.23:7860`, a user name and a fresh password. Open it on the phone, tap the upload box and choose *Camera* to photograph the letter. The photo goes only to your own computer — nothing leaves your home network. Use this only in a network you trust; Windows may ask once whether Python may accept connections in private networks. (The webcam button inside the page needs HTTPS and therefore does not work on phones — use the upload box's camera option instead.)
-Language choice, photo/PDF upload or webcam, one-click example letters, a big "Explain" button,
+Language choice, a camera button, photo/PDF upload, one-click example letters, a big "Explain" button,
 step-by-step progress, auto-playing audio, a "what the computer read" panel for a helper to check,
 and the reply drafts with copy and download.
+
+## Phone app
+Amt-Lotse can be installed on a phone like an app: its own icon on the home screen, full screen, and a big
+**📷 Take a photo of the letter** button that opens the back camera directly. The models still run only on
+your computer: the phone sends the photo there and nowhere else.
+
+The terminal shows the address as a **QR code**, plus a user name and a fresh password. Point the phone
+camera at the code, log in, then use the browser menu: **Install app** (Android/Chrome) or
+**Share → Add to Home Screen** (iPhone/Safari).
+
+Phones only install a real app from an **HTTPS** address. Pick one way:
+
+| Way | How | Good for |
+|---|---|---|
+| **Tailscale** (easiest) | Install [Tailscale](https://tailscale.com/download) on the computer and the phone, same account. Run `tailscale serve --bg 7860` once, then `uv run amt-lotse-ui --tailscale`. The first `serve` may ask you to turn on HTTPS for your tailnet (one click). | Valid HTTPS with no certificate work; also works away from home; only your own devices can reach it |
+| **Own certificate** | `mkcert 192.168.178.23` (your Wi-Fi address), install mkcert's root certificate on the phone once, then `uv run amt-lotse-ui --lan --cert 192.168.178.23.pem --key 192.168.178.23-key.pem` | Home Wi-Fi only, no extra account |
+| **Plain `--lan`** | `uv run amt-lotse-ui --lan` | Quick use in the phone's browser; "Add to Home screen" makes a shortcut, not a full app |
+
+Use the phone modes only in networks you trust. Windows may ask once whether Python may accept
+connections in private networks. Set `AMT_LOTSE_PASSWORD` to keep the same password between starts.
 
 ## Install with Docker (one command)
 Needs [Docker Desktop](https://www.docker.com/products/docker-desktop/). Everything stays on your computer.
@@ -250,6 +270,7 @@ What the extraction eval taught us:
 - [x] Web UI with photo upload, example letters, progress steps and audio
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
+- [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 6 tools (local-first, folder allow-list)
