@@ -167,6 +167,22 @@ def explain_letter(path: str, language: Language = "en") -> dict:
 
 
 @server.tool(annotations=READ_ONLY)
+def ask_about_letter(path: str, question: str, language: Language = "en") -> dict:
+    """Answer a question about the letter ("What happens if I don't pay?") using ONLY what the letter says.
+    If the letter doesn't answer it, 'answered_from_letter' is false and the answer says so. Runs fully locally."""
+    from amt_lotse.ask import answer_question
+
+    p = resolve_letter(path)
+    a = analyze_cached(p)
+    if a.looks_bad:
+        raise ToolError("The letter could not be read completely. Take the photo again.")
+    with quiet_stdout():
+        result = answer_question(a.text, a.info, question, language)
+    return {"question": result.question, "answer": result.text, "answered_from_letter": result.from_letter,
+            "disclaimer": "Automatic answer, not legal advice. Check the original letter."}
+
+
+@server.tool(annotations=READ_ONLY)
 def draft_reply(path: str, intent: Intent, note: str | None = None, language: Language = "en") -> dict:
     """Draft a formal German reply letter. intent: more-time, installments, already-paid, reschedule, question.
     note: the user's own facts in any language (e.g. 'I am sick until 10 December'). Unknown details stay as

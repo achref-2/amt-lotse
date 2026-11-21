@@ -91,6 +91,22 @@ Language choice, a camera button, photo/PDF upload, one-click example letters, a
 step-by-step progress, auto-playing audio, a "what the computer read" panel for a helper to check,
 and the reply drafts with copy and download.
 
+## Voice input
+Under the result there is **Ask a question about this letter**: press 🎤, ask in your own language
+("What happens if I don't pay?"), and the answer is shown and read aloud. The note for a reply letter
+can be spoken too.
+
+- Speech is turned into text **offline** with [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
+  (model `small`, about 0.5 GB, downloaded once). Smaller/faster: `$env:AMT_LOTSE_WHISPER_MODEL="base"`.
+- The question is answered **only from the letter**. If the letter doesn't say it, the answer says so and
+  points to the office or an advice centre: no guessing, no general legal advice.
+- Dates and euro amounts in an answer must appear in the letter; otherwise the model is asked again,
+  and if it still invents one, the safe "the letter does not say this" answer is used.
+- Same from the command line: `--ask "What if I don't pay?"` or `--ask-voice question.wav`,
+  and from AI assistants with the MCP tool `ask_about_letter`.
+- Browsers only allow the microphone on `localhost` or HTTPS, so on a phone use `--tailscale` or
+  `--cert/--key` (plain `--lan` can still type questions).
+
 ## Phone app
 Amt-Lotse can be installed on a phone like an app: its own icon on the home screen, full screen, and a big
 **📷 Take a photo of the letter** button that opens the back camera directly. The models still run only on
@@ -149,6 +165,7 @@ Voices for `--speak` are downloaded automatically on first use (into `voices/`).
 |---|---|
 | `--lang en\|fr\|ar\|de` | language of the explanation, audio and reply summary |
 | `--speak` | read aloud and save as `audio/<letter>_<lang>.wav` |
+| `--ask "…"` / `--ask-voice file.wav` | a question about the letter, typed or spoken, answered only from the letter |
 | `--normal-speed` | normal speaking speed (default is slower) |
 | `--no-play` | only save the audio file |
 | `--reply more-time\|installments\|already-paid\|reschedule\|question` | draft a German reply into `replies/` |
@@ -165,6 +182,7 @@ or local agents can use it as tools — e.g. *"What do I have to do with the let
 | `list_letters` | letters (text, PDF, photos) in the allowed folders |
 | `get_letter_facts` | code-checked facts: sender, deadline, days left, amount to pay/receive, reference number, one "what to do" sentence |
 | `explain_letter` | facts + plain-language explanation in en/fr/ar/de (local model) |
+| `ask_about_letter` | answers a question using only what the letter says; says so when the letter doesn't answer it |
 | `draft_reply` | formal German reply with `[placeholders]`; invented numbers are replaced |
 | `create_calendar_reminder` | `.ics` file with reminders 3 days and 1 day before the deadline |
 | `read_letter_text` | the full letter text — separate on purpose, see privacy |
@@ -273,5 +291,5 @@ What the extraction eval taught us:
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
-- [x] MCP server with 6 tools (local-first, folder allow-list)
-- [ ] Voice input
+- [x] MCP server with 7 tools (local-first, folder allow-list)
+- [x] Voice input: spoken questions about the letter, answered only from the letter; spoken reply notes

@@ -27,8 +27,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-import gradio as gr
+# Privacy: Gradio sends usage statistics to its servers by default. Amt-Lotse promises that nothing leaves
+# the computer, so this is switched off before Gradio is imported (Docker sets the same variable).
+os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
 
+import gradio as gr  # noqa: E402
+
+from amt_lotse.ask import answer_question
 from amt_lotse.cli import LANGUAGES, explain
 from amt_lotse.pipeline import analyze, calendar_file, summary_card, todo_box
 from amt_lotse.reply import INTENTS, build_reply
@@ -50,7 +55,9 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "Understand letters from German offices — in your language, read aloud, privately on this computer.",
         "step1": "1. Choose your language", "step2": "2. Your letter",
         "hint2": "Take a photo of the letter with your phone, or choose a file (photo, PDF or text). The explanation starts by itself.",
-        "file": "Letter", "camera": "📷 Take a photo of the letter", "examples": "Try it with an example letter (not a real letter)",
+        "file": "Letter", "camera": "📷 Take a photo of the letter", 
+        "ask_h": "Ask a question about this letter", "ask_hint": "Press the microphone and ask in your language, or type your question. The answer comes only from this letter.", "ask_mic": "🎤 Speak your question", "ask_text": "Your question", "ask_ph": "For example: What happens if I don't pay?", "ask_btn": "Answer my question", "s_listen": "Listening to what you said …", "s_answer": "Looking for the answer in the letter …", "no_speech": "I could not understand the recording. Please try again, a little closer to the microphone.", "note_mic": "🎤 Or say it", "you_asked": "You asked", 
+        "examples": "Try it with an example letter (not a real letter)",
         "go": "Explain the letter", "step3": "3. Result",
         "listen_again": "Listen again", "calendar": "Add the deadline to my calendar",
         "read": "What the computer read (for a helper to check)",
@@ -74,7 +81,9 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "Comprendre les lettres des administrations allemandes — dans votre langue, à voix haute, en privé sur cet ordinateur.",
         "step1": "1. Choisissez votre langue", "step2": "2. Votre lettre",
         "hint2": "Prenez la lettre en photo avec votre téléphone, ou choisissez un fichier (photo, PDF ou texte). L'explication démarre toute seule.",
-        "file": "Lettre", "camera": "📷 Photographier la lettre", "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
+        "file": "Lettre", "camera": "📷 Photographier la lettre", 
+        "ask_h": "Poser une question sur cette lettre", "ask_hint": "Appuyez sur le micro et posez votre question dans votre langue, ou écrivez-la. La réponse vient uniquement de cette lettre.", "ask_mic": "🎤 Dites votre question", "ask_text": "Votre question", "ask_ph": "Par exemple : que se passe-t-il si je ne paie pas ?", "ask_btn": "Répondre à ma question", "s_listen": "J'écoute ce que vous avez dit …", "s_answer": "Je cherche la réponse dans la lettre …", "no_speech": "Je n'ai pas compris l'enregistrement. Réessayez, un peu plus près du micro.", "note_mic": "🎤 Ou dites-le", "you_asked": "Votre question", 
+        "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
         "go": "Expliquer la lettre", "step3": "3. Résultat",
         "listen_again": "Écouter encore", "calendar": "Ajouter la date limite à mon agenda",
         "read": "Ce que l'ordinateur a lu (pour vérification par une autre personne)",
@@ -98,7 +107,9 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "افهم رسائل الإدارات الألمانية — بلغتك، بصوت مسموع، وبخصوصية تامة على هذا الحاسوب.",
         "step1": "الخطوة 1: اختر لغتك", "step2": "الخطوة 2: رسالتك",
         "hint2": "التقط صورة للرسالة بهاتفك، أو اختر ملفا: صورة أو ملف PDF أو نص. يبدأ الشرح تلقائيا.",
-        "file": "الرسالة", "camera": "📷 صوّر الرسالة", "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
+        "file": "الرسالة", "camera": "📷 صوّر الرسالة", 
+        "ask_h": "اسأل سؤالا عن هذه الرسالة", "ask_hint": "اضغط على الميكروفون واسأل بلغتك، أو اكتب سؤالك. الجواب يأتي فقط من هذه الرسالة.", "ask_mic": "🎤 قل سؤالك", "ask_text": "سؤالك", "ask_ph": "مثلا: ماذا يحدث إذا لم أدفع؟", "ask_btn": "أجب عن سؤالي", "s_listen": "أستمع إلى ما قلته …", "s_answer": "أبحث عن الجواب في الرسالة …", "no_speech": "لم أفهم التسجيل. من فضلك حاول مرة أخرى، أقرب قليلا من الميكروفون.", "note_mic": "🎤 أو قله بصوتك", "you_asked": "سؤالك", 
+        "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
         "go": "اشرح الرسالة", "step3": "الخطوة 3: النتيجة",
         "listen_again": "استمع مرة أخرى", "calendar": "أضف الموعد النهائي إلى تقويمي",
         "read": "ما قرأه الحاسوب (ليتحقق منه شخص آخر)",
@@ -122,7 +133,9 @@ UI = {
         "title": "Amt-Lotse", "subtitle": "Briefe von Ämtern verstehen — in Ihrer Sprache, vorgelesen, privat auf diesem Computer.",
         "step1": "1. Sprache wählen", "step2": "2. Ihr Brief",
         "hint2": "Machen Sie mit dem Handy ein Foto vom Brief, oder wählen Sie eine Datei (Foto, PDF oder Text). Die Erklärung startet von selbst.",
-        "file": "Brief", "camera": "📷 Brief fotografieren", "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
+        "file": "Brief", "camera": "📷 Brief fotografieren", 
+        "ask_h": "Eine Frage zu diesem Brief stellen", "ask_hint": "Drücken Sie auf das Mikrofon und fragen Sie in Ihrer Sprache, oder schreiben Sie die Frage. Die Antwort kommt nur aus diesem Brief.", "ask_mic": "🎤 Frage sprechen", "ask_text": "Ihre Frage", "ask_ph": "Zum Beispiel: Was passiert, wenn ich nicht zahle?", "ask_btn": "Frage beantworten", "s_listen": "Ich höre, was Sie gesagt haben …", "s_answer": "Ich suche die Antwort im Brief …", "no_speech": "Ich konnte die Aufnahme nicht verstehen. Bitte noch einmal, etwas näher am Mikrofon.", "note_mic": "🎤 Oder sprechen Sie es", "you_asked": "Ihre Frage", 
+        "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
         "go": "Brief erklären", "step3": "3. Ergebnis",
         "listen_again": "Noch einmal anhören", "calendar": "Frist in meinen Kalender eintragen",
         "read": "Was der Computer gelesen hat (zum Prüfen durch eine Hilfsperson)",
@@ -178,6 +191,13 @@ CSS = """
 .todo .when { font-weight: 800; font-size: calc(var(--amt-base) * 1.1) !important; margin-bottom: 4px; }
 .todo .what { font-size: calc(var(--amt-base) * 1.35) !important; line-height: 1.5; }
 #card { font-size: 1.1em; }
+.answer { border-radius: 14px; padding: 16px 20px; background: #eef7f0 !important; border: 3px solid #12a150; }
+.answer, .answer * { color: #0b3d1f !important; }            /* contrast 12:1 */
+.answer.unknown { background: #fff6e0 !important; border-color: #b86e00; }
+.answer.unknown, .answer.unknown * { color: #4a2c00 !important; }
+.answer .q { font-style: italic; margin: 0 0 6px !important; }
+.answer .a { font-size: calc(var(--amt-base) * 1.2) !important; margin: 0 !important; }
+#ask-mic, #note-mic { min-height: 0; }
 #card .ref { font-family: ui-monospace, Consolas, monospace; font-size: 1.15em; letter-spacing: 0.08em; }
 #status { font-weight: 700; min-height: 1.6em; }
 #toolbar { justify-content: flex-end; gap: 8px; }
@@ -342,6 +362,69 @@ def write_reply(state, intent, note, lang):
     yield draft.german, f"<p><b>{t['s_reply_done']}</b></p><p>{draft.summary}</p>{notes}", str(out)
 
 
+def _transcribe(recording, lang):
+    from amt_lotse.listen import transcribe
+
+    return transcribe(recording, lang) if recording else ""
+
+
+def hear_question(recording, lang):
+    """Microphone -> text in the question box. The answer then starts by itself."""
+    t = UI[lang]
+    # On a failure the box is emptied, so the answer step that follows doesn't repeat an old question.
+    if not recording:
+        return "", "", None
+    try:
+        text = _transcribe(recording, lang)
+    except Exception as e:  # e.g. faster-whisper not installed
+        return "", _status(t["error"].format(e=e)), None
+    if not text:
+        return "", _status(t["no_speech"]), None
+    return text, "", None   # None empties the microphone, ready for the next question
+
+
+def answer(state, question, lang, read_aloud, slow):
+    """Generator: status first, then the answer (shown and read aloud)."""
+    t, rtl = UI[lang], lang == "ar"
+    if not state:
+        yield _status(t["no_file"]), None
+        return
+    if not (question or "").strip():
+        yield "", None
+        return
+    yield _status(t["s_answer"]), None
+    from amt_lotse.extract import LetterInfo
+
+    try:
+        a = answer_question(state["text"], LetterInfo(**state["info"]), question, lang)
+    except Exception as e:  # e.g. Ollama not running
+        yield _status(t["error"].format(e=e)), None
+        return
+    sound = str(speak(a.text, lang, "answer", slow=slow, play=False)) if read_aloud else None
+    css = "answer" if a.from_letter else "answer unknown"
+    html = (f'<div class="{css}" dir="{"rtl" if rtl else "auto"}"><p class="q">{t["you_asked"]}: '
+            f'{_escape(a.question)}</p><p class="a">{_escape(a.text)}</p></div>')
+    yield html, sound
+
+
+def add_to_note(recording, note, lang):
+    """Microphone -> appended to the note for the reply letter (any language; the reply is written in German)."""
+    t = UI[lang]
+    if not recording:
+        return gr.update(), "", None
+    try:
+        text = _transcribe(recording, lang)
+    except Exception as e:
+        return gr.update(), _status(t["error"].format(e=e)), None
+    if not text:
+        return gr.update(), _status(t["no_speech"]), None
+    return gr.update(value=f"{note} {text}".strip() if note else text), "", None
+
+
+def _escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def switch_language(lang):
     """Translate every label on the page."""
     t = UI[lang]
@@ -357,6 +440,9 @@ def switch_language(lang):
         gr.update(value=t["reply_btn"]), gr.update(label=t["reply_text"]), gr.update(label=t["download"]),
         gr.update(label=t["settings"]), gr.update(label=t["read_aloud"]), gr.update(label=t["slow"]),
         gr.update(value="A+ " + t["bigger"]), gr.update(value="A− " + t["smaller"]), gr.update(value="◐ " + t["contrast"]),
+        f"### {t['ask_h']}", t["ask_hint"], gr.update(label=t["ask_mic"]),
+        gr.update(label=t["ask_text"], placeholder=t["ask_ph"], rtl=rtl), gr.update(value=t["ask_btn"]),
+        gr.update(label=t["note_mic"]),
         t["footer"], lang,
     )
 
@@ -364,7 +450,7 @@ def switch_language(lang):
 # ---------------------------------------------------------------- layout
 def build_ui() -> gr.Blocks:
     t = UI["en"]
-    with gr.Blocks(title="Amt-Lotse") as ui:
+    with gr.Blocks(title="Amt-Lotse", analytics_enabled=False) as ui:
         saved_lang = gr.BrowserState("en", storage_key="amt_lotse_lang")
         state = gr.State()
 
@@ -398,12 +484,27 @@ def build_ui() -> gr.Blocks:
             audio = gr.Audio(type="filepath", autoplay=True, show_label=False, elem_id="audio", buttons=["download"])
             card = gr.Markdown(elem_id="card")
             explanation = gr.Markdown(elem_id="explanation")
+
+            ask_h = gr.Markdown(f"### {t['ask_h']}")
+            ask_hint = gr.Markdown(t["ask_hint"])
+            ask_mic = gr.Audio(sources=["microphone"], type="filepath", label=t["ask_mic"], elem_id="ask-mic",
+                               buttons=[])  # private: no share or download of the recording
+            with gr.Row(equal_height=True):
+                ask_text = gr.Textbox(label=t["ask_text"], placeholder=t["ask_ph"], scale=4)
+                ask_btn = gr.Button(t["ask_btn"], variant="primary", size="lg", scale=1)
+            ask_status = gr.Markdown(elem_id="ask-status")
+            ask_answer = gr.HTML(elem_id="answer")
+            ask_audio = gr.Audio(type="filepath", autoplay=True, show_label=False, elem_id="answer-audio",
+                                 buttons=["download"])
             with gr.Accordion(t["read"], open=False) as read_box:
                 read_text = gr.Textbox(lines=12, show_label=False, buttons=["copy"])
             with gr.Accordion(t["reply"], open=False) as reply_box:
                 intent = gr.Dropdown([(label, key) for key, label in t["intents"].items()], value="question",
                                      label=t["intent"])
                 note = gr.Textbox(label=t["note"], placeholder=t["note_ph"])
+                note_mic = gr.Audio(sources=["microphone"], type="filepath", label=t["note_mic"], elem_id="note-mic",
+                                    buttons=[])
+                note_status = gr.Markdown()
                 reply_btn = gr.Button(t["reply_btn"], size="lg")
                 reply_status = gr.Markdown()
                 reply_text = gr.Textbox(label=t["reply_text"], lines=16, buttons=["copy"])
@@ -418,7 +519,8 @@ def build_ui() -> gr.Blocks:
         # ----- events
         translated = [header, step1, step2, hint2, camera, file_in, examples_box, go, step3, listen_again, calendar,
                       read_box, reply_box, intent, note, reply_btn, reply_text, reply_file, settings_box,
-                      read_aloud, slow, bigger, smaller, contrast, footer, saved_lang]
+                      read_aloud, slow, bigger, smaller, contrast,
+                      ask_h, ask_hint, ask_mic, ask_text, ask_btn, note_mic, footer, saved_lang]
         explain_outputs = [status, result, todo, card, audio, listen_again, calendar, explanation, read_text, state]
 
         ui.load(None, js=ON_LOAD_JS)
@@ -432,6 +534,14 @@ def build_ui() -> gr.Blocks:
 
         reply_btn.click(write_reply, [state, intent, note, lang], [reply_text, reply_status, reply_file],
                         show_progress="hidden")
+        ask = dict(fn=answer, inputs=[state, ask_text, lang, read_aloud, slow], outputs=[ask_answer, ask_audio],
+                   show_progress="hidden")
+        # speak -> the words appear in the box (so the person can check them) -> the answer starts by itself
+        ask_mic.stop_recording(hear_question, [ask_mic, lang], [ask_text, ask_status, ask_mic], show_progress="hidden") \
+            .success(**ask)
+        ask_btn.click(**ask)
+        ask_text.submit(**ask)
+        note_mic.stop_recording(add_to_note, [note_mic, note, lang], [note, note_status, note_mic], show_progress="hidden")
         camera.click(None, js=CAMERA_JS)
         listen_again.click(None, js=LISTEN_AGAIN_JS)
         bigger.click(None, js=BIGGER_JS)

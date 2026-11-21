@@ -45,8 +45,10 @@ services:
       - "127.0.0.1:7860:7860"   # only this computer can open the UI
     volumes:
       - voices:/app/voices      # TTS voices, downloaded once
+      - whisper:/home/amt/.cache/huggingface   # speech recognition model, downloaded once
     restart: unless-stopped
 
 volumes:
   ollama:
   voices:
+  whisper:

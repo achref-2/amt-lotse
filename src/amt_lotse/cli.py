@@ -6,6 +6,8 @@ Usage:
     uv run amt-lotse data/eval/mahnung_01.txt --lang ar --speak     (read aloud)
     uv run amt-lotse photo_of_letter.jpg --lang ar --speak          (photo / scan / PDF)
     uv run amt-lotse data/eval/mahnung_01.txt --reply installments   (draft a German reply)
+    uv run amt-lotse data/eval/mahnung_01.txt --ask "What if I don't pay?"   (question, answered from the letter)
+    uv run amt-lotse data/eval/mahnung_01.txt --ask-voice question.wav       (spoken question)
 """
 
 import argparse
@@ -98,7 +100,10 @@ def is_in_language(text: str, lang_code: str) -> bool:
     if FOREIGN_SCRIPT.search(text):
         return False
     if lang_code == "ar":
-        return len(ARABIC_SCRIPT.findall(text)) > len(text) * 0.3
+        # count letters only: digits, dates and "€" are the same in every language
+        # (a short answer like "ادفع 56,13 € قبل 04.12.2026." is clearly Arabic)
+        letters = [c for c in text if c.isalpha()]
+        return len(ARABIC_SCRIPT.findall(text)) > len(letters) * 0.3
     if lang_code in ("en", "fr"):
         german_markers = len(re.findall(r"\b(der|die|das|und|ist|nicht|wird|Sie)\b", text))
         return german_markers < 3
@@ -128,6 +133,10 @@ def main() -> None:
                         help="also draft a reply letter in formal German")
     parser.add_argument("--note", help="your own information for the reply, in any language "
                                        "(e.g. 'I am sick until 10 December')")
+    parser.add_argument("--ask", metavar="QUESTION",
+                        help="a question about the letter, in your language; answered only from the letter")
+    parser.add_argument("--ask-voice", metavar="AUDIO", type=Path,
+                        help="the same, as a recording (.wav/.mp3/.m4a); turned into text offline")
     args = parser.parse_args()
 
     if not args.letter.exists():
@@ -185,6 +194,19 @@ def main() -> None:
     explanation = explain(letter, info, args.lang)
     print(explanation)
     print("\n(Automatic summary – always double-check the original letter.)")
+
+    question = args.ask
+    if args.ask_voice:
+        from amt_lotse.listen import transcribe
+
+        print("\nListening to your question ...", flush=True)
+        question = transcribe(str(args.ask_voice), args.lang)
+        print(f"You asked: {question}")
+    if question:
+        from amt_lotse.ask import answer_question
+
+        answer = answer_question(letter, info, question, args.lang)
+        print(f"\nQuestion: {answer.question}\nAnswer:   {answer.text}")
 
     if args.reply:
         from amt_lotse.reply import build_reply
