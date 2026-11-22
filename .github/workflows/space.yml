@@ -1,0 +1,30 @@
+# Updates the online version (Hugging Face Space) after every push to main that changes the app.
+# Setup once (README, "Always online"): repository secret HF_TOKEN (a Hugging Face write token)
+# and repository variable HF_SPACE (e.g. achref-2/amt-lotse). Without them this workflow does nothing.
+name: Online version
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/**", "data/photos/**", "deploy/huggingface/**", "pyproject.toml", "uv.lock"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  space:
+    name: Update the Hugging Face Space
+    if: vars.HF_SPACE != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.4.0
+
+      - name: Build and upload
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: uv run --no-project --with huggingface_hub python deploy/huggingface/upload.py build/space
