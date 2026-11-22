@@ -1,0 +1,9 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must": {
+    "payment_still_due": "(still|anyway|even if|even when|regardless|nevertheless|in any case).{0,80}\\b(pay|paid|due)\\b|\\b(pay|payment|amount|tax)\\b.{0,60}\\b(even if|even when|still|regardless)\\b|does ?n[o']t (stop|pause|postpone|delay|suspend|cancel)"
+  },
+  "must_not": {
+    "deadline_from_letter_date": "\\b(month|weeks?)\\b\\W+(of|from|after)\\W+(the\\W+)?(letter'?s\\W+)?date\\b|date of the letter|letter'?s date"
+  }
+}

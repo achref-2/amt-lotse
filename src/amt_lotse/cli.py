@@ -74,6 +74,9 @@ def days_left_text(deadline: date) -> str:
 
 
 def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
+    from amt_lotse.knowledge import background
+
+    notes = background(letter)          # RAG: correct meaning of official terms used in this letter
     response = chat(
         model=EXPLAIN_MODEL,
         messages=[
@@ -85,12 +88,18 @@ def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
                     "Write 3 to 4 short, simple sentences: who sent it, what it is about, "
                     "and exactly what the reader has to do. "
                     "If the letter says what happens if the reader does not act, explain that too. "
-                    "If the letter does not say it, do not write anything about consequences: "
-                    "never claim that nothing will happen. "
+                    "If the letter does not say it, write NOTHING about consequences: no delays, penalties or "
+                    "further letters that the letter does not mention, never claim that nothing will happen, and "
+                    "also do not write that the letter mentions no consequences (readers hear 'nothing will "
+                    "happen'). Simply leave the topic out. "
                     "Only use facts from the letter. Never add details that are not in the letter. "
                     "Write names of people, cities and companies exactly as in the letter, in Latin letters. "
                     "Keep German official terms (e.g. Krankenkasse, Bürgergeld, Mahnung) "
-                    "and add a short explanation in brackets."
+                    "and add a short explanation in brackets. "
+                    "If background notes are given, use them ONLY to explain what a German term in the letter "
+                    "means. Do not turn them into tips, advice, conditions or consequences "
+                    "(no 'if he does not ..., then ...' from the notes): what the reader must do and what happens "
+                    "otherwise come only from the letter. Always keep the consequences the letter itself states."
                 ),
             },
             {
@@ -100,11 +109,12 @@ def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
                     f"Facts (trust these): deadline={info.deadline_text}, "
                     f"amount={info.amount_text if info.recipient_must_pay else None}, "
                     f"money_direction={info.money_direction}.\n\n"
-                    f"Now explain this letter in {language}. Answer only in {language}."
+                    + (f"{notes}\n\n" if notes else "")
+                    + f"Now explain this letter in {language}. Answer only in {language}."
                 ),
             },
         ],
-        options=options_for(letter),
+        options=options_for(letter, notes),
     )
     return response["message"]["content"].strip()
 

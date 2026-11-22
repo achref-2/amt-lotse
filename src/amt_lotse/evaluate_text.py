@@ -11,6 +11,7 @@ It uses the same *.expected.json files as evaluate.py (deadline, amount, referen
 
 import argparse
 import json
+import os
 import re
 import time
 from datetime import date, datetime
@@ -105,6 +106,17 @@ def sentences(text: str) -> int:
 
 # ---------- checks ----------
 
+def check_meaning(text: str, rules: dict) -> dict[str, bool]:
+    """Meaning checks from data/eval/<letter>.meaning.json (English explanations only).
+    'must': a pattern that has to match (the meaning is there); 'must_not': a known meaning error."""
+    checks = {}
+    for name, pattern in rules.get("must", {}).items():
+        checks["meaning." + name] = bool(re.search(pattern, text, re.IGNORECASE))
+    for name, pattern in rules.get("must_not", {}).items():
+        checks["meaning." + name] = not re.search(pattern, text, re.IGNORECASE)
+    return checks
+
+
 def check_explanation(text: str, letter: str, expected: dict, lang: str) -> dict:
     exp_deadline = date.fromisoformat(expected["deadline"]) if expected["deadline"] else None
     exp_amount = Decimal(expected["amount_eur"]) if expected["amount_eur"] else None
@@ -161,12 +173,26 @@ def main() -> None:
     parser.add_argument("--lang", choices=LANGUAGES, default="en")
     parser.add_argument("--no-replies", action="store_true", help="only check explanations (faster)")
     parser.add_argument("--limit", type=int, help="only the first N letters")
+    parser.add_argument("--only", nargs="+", metavar="LETTER",
+                        help="only these letters, e.g. --only finanzamt_01 beitragsservice_02 (faster re-checks)")
+    parser.add_argument("--no-rag", action="store_true",
+                        help="without the background knowledge, to measure what RAG changes")
     args = parser.parse_args()
+    if args.no_rag:
+        os.environ["AMT_LOTSE_RAG"] = "0"
 
-    files = sorted(EVAL_DIR.glob("*.expected.json"))[: args.limit]
+    files = sorted(EVAL_DIR.glob("*.expected.json"))
+    if args.only:
+        known = {f.name.removesuffix(".expected.json") for f in files}
+        unknown = sorted(set(args.only) - known)
+        if unknown:
+            parser.error(f"unknown letter(s): {', '.join(unknown)}. Known: {', '.join(sorted(known))}")
+        files = [f for f in files if f.name.removesuffix(".expected.json") in args.only]
+    files = files[: args.limit]
     totals: dict[str, list[bool]] = {}
     guardrail_count = 0
     report = []
+    errors: list[str] = []
     start = time.perf_counter()
 
     for expected_path in files:
@@ -175,9 +201,18 @@ def main() -> None:
         expected = json.loads(expected_path.read_text(encoding="utf-8"))
         print(f"\n=== {name}", flush=True)
 
-        info = extract_letter_info(letter)
-        explanation = explain(letter, info, args.lang).split("\n\n(⚠")[0]
+        try:
+            info = extract_letter_info(letter)
+            explanation = explain(letter, info, args.lang).split("\n\n(⚠")[0]
+        except Exception as e:      # e.g. Ollama crashed on the GPU: note it, go on with the next letter
+            print(f"  ✗ ERROR, letter skipped: {e}", flush=True)
+            errors.append(name)
+            report.append({"letter": name, "error": str(e)})
+            continue
         exp_result = check_explanation(explanation, letter, expected, args.lang)
+        meaning_path = EVAL_DIR / f"{name}.meaning.json"
+        if args.lang == "en" and meaning_path.exists():      # meaning rules are written for English
+            exp_result["checks"].update(check_meaning(explanation, json.loads(meaning_path.read_text(encoding="utf-8"))))
         entry = {"letter": name, "explanation": explanation, **{"explanation_" + k: v for k, v in exp_result.items()}}
 
         for check, ok in exp_result["checks"].items():
@@ -190,7 +225,13 @@ def main() -> None:
         if not args.no_replies:
             intent = choose_intent(expected)
             reference = normalize_reference(info.reference_number) if info.reference_number else None
-            draft = build_reply(letter, info, reference, intent, LANGUAGES[args.lang])
+            try:
+                draft = build_reply(letter, info, reference, intent, LANGUAGES[args.lang])
+            except Exception as e:
+                print(f"  ✗ ERROR in the reply, skipped: {e}", flush=True)
+                errors.append(name + " (reply)")
+                report.append(entry)
+                continue
             rep_result = check_reply(draft.german, draft.warnings, expected, letter)
             guardrail_count += rep_result["guardrail_replaced_numbers"]
             entry.update({"reply_intent": intent, "reply": draft.german, "reply_checks": rep_result["checks"],
@@ -203,7 +244,9 @@ def main() -> None:
         report.append(entry)
 
     print("\n" + "=" * 60)
-    print(f"Language: {LANGUAGES[args.lang]}   Letters: {len(files)}   Time: {time.perf_counter() - start:.0f}s\n")
+    rag = "off" if args.no_rag else "on"
+    print(f"Language: {LANGUAGES[args.lang]}   Letters: {len(files)}   RAG: {rag}   "
+          f"Time: {time.perf_counter() - start:.0f}s\n")
     passed = total = 0
     for check, results in totals.items():
         ok = sum(results)
@@ -212,11 +255,18 @@ def main() -> None:
     if not args.no_replies:
         print(f"\n  Replies where the model invented numbers (fixed by guardrail): {guardrail_count}/{len(files)}")
     print(f"\nScore: {passed}/{total} checks passed ({passed / max(total, 1):.0%})")
+    if errors:
+        print(f"⚠ {len(errors)} letter(s) skipped because of errors: {', '.join(errors)}. "
+              "Restart Ollama and run again for a complete result.")
+    meaning = [ok for check, results in totals.items() if ".meaning." in check for ok in results]
+    if meaning:
+        print(f"Meaning checks: {sum(meaning)}/{len(meaning)}")
 
     RESULTS_DIR.mkdir(exist_ok=True)
-    out = RESULTS_DIR / f"text_eval_{args.lang}_{datetime.now():%Y%m%d_%H%M}.json"
-    out.write_text(json.dumps({"lang": args.lang, "totals": {k: [sum(v), len(v)] for k, v in totals.items()},
-                               "guardrail_replaced": guardrail_count, "letters": report},
+    suffix = ("_norag" if args.no_rag else "") + ("_partial" if args.only else "")
+    out = RESULTS_DIR / f"text_eval_{args.lang}{suffix}_{datetime.now():%Y%m%d_%H%M}.json"
+    out.write_text(json.dumps({"lang": args.lang, "rag": not args.no_rag, "totals": {k: [sum(v), len(v)] for k, v in totals.items()},
+                               "guardrail_replaced": guardrail_count, "errors": errors, "letters": report},
                               ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(f"Full report: {out}")
 

@@ -1,0 +1,6 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must": {
+    "money_comes_to_you": "receiv|refund|get .{0,20}back|paid back|credit"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must_not": {
+    "increase_linked_to_not_paying": "if (he|she|you|they|mr\\.? \\w+) (do(es)?n'?t|do(es)? not) pay\\b(?:[^.]|\\.\\d)*?\\b(advance|prepayment|monthly|112)"
+  },
+  "must": {
+    "advance_payment_increases": "(advance|prepayment|monthly).{0,80}(increas|ris|go(es)? up|112)"
+  }
+}

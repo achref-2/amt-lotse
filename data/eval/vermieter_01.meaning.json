@@ -1,0 +1,6 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must": {
+    "nothing_to_do": "nothing|no action|not (have|need) to (do|pay)|don'?t (have|need) to"
+  }
+}

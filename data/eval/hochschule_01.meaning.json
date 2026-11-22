@@ -1,0 +1,6 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must": {
+    "exmatriculation_possible": "exmatric|de-?regist|remov|lose .{0,30}(student|place|status)|expel"
+  }
+}

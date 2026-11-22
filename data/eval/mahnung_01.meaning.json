@@ -1,0 +1,9 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must": {
+    "debt_collection_company": "debt[- ]collect|collection (agency|company)"
+  },
+  "must_not": {
+    "called_enforcement": "enforc|bailiff|court|seiz|police"
+  }
+}

@@ -298,9 +298,51 @@ What the extraction eval taught us:
 
 `data/photos/` contains a scan, a tilted phone photo, a digital PDF and a scanned PDF made from the test letters. All test letters are fictional and marked as test data.
 
+## Knowledge base (RAG) against meaning errors
+The explanations sounded fluent but sometimes got the **meaning** of official terms wrong. Real examples from
+the evaluation before RAG:
+
+| Letter says | Model wrote | Why it matters |
+|---|---|---|
+| *Einspruch innerhalb eines Monats nach seiner **Bekanntgabe*** | "within one month of the **letter's date**" | the period starts when the letter counts as delivered, not on the printed date |
+| a tax demand with a *Rechtsbehelfsbelehrung* | did not say that **an Einspruch does not stop the payment** | someone could object, not pay, and get late charges |
+| *übergeben wir die Forderung an ein **Inkassounternehmen*** | "an **enforcement agency**" | Inkasso is a private company without special rights; "enforcement" sounds like the state |
+| a request for documents, no consequence stated | "failure to do so may result in delays" | an invented consequence |
+
+**How it works:** `src/amt_lotse/knowledge/` holds 16 short, hand-written entries (Bekanntgabe, Einspruch, Widerspruch,
+Inkasso, Vollstreckung, Mahnung, Jobcenter appointments, Betriebskosten, Aufenthaltstitel, Rundfunkbeitrag …),
+each with **sources** (law texts on gesetze-im-internet.de, Verbraucherzentrale, Arbeitsagentur). The terms that
+appear in a letter select up to 3 entries, which go into the explanation and question prompts as *background*,
+with the instruction to use them only to explain terms correctly — never to take dates, amounts or consequences
+from them.
+
+- **Keyword retrieval on purpose:** official letters use fixed legal words, so matching them finds the right entry
+  reliably, needs no extra embedding model, runs instantly and can be tested in CI. Tests check, for example, that a
+  tax decision gets *Einspruch* and not *Widerspruch*, and that a request for documents gets no "objection" entry.
+- **No numbers in the knowledge:** entries contain no amounts, percentages or dates (a test enforces this). They go
+  out of date — the Jobcenter sanction rules changed in July 2026 — and the letter itself says what applies.
+- **Measured, not assumed:** `data/eval/*.meaning.json` describes, per test letter, what the explanation must say
+  ("the tax must still be paid even with an Einspruch") or must not say ("enforcement"). Compare:
+  ```bash
+  uv run python -m amt_lotse.evaluate_text --lang en --no-replies --no-rag   # before
+  uv run python -m amt_lotse.evaluate_text --lang en --no-replies            # with the knowledge base
+  ```
+  Results (12 test letters, 14 meaning checks, English, qwen2.5:7b):
+
+  | Run | Meaning checks | What still went wrong |
+  |---|---|---|
+  | without RAG | **8/14** | Bekanntgabe read as the letter's date, "must still pay despite Einspruch" missing, Inkasso called "enforcement", an invented consequence |
+  | RAG, first version | 10/14 | those **fixed** — but background *advice* leaked into the story, e.g. a heating bill: "if he does not pay, the monthly advance payment will increase" (it increases anyway) |
+  | RAG + "notes only explain terms" | **12/14** | only two *tips* still presented as if the letter said them ("failure to respond may result in a reminder") |
+  | RAG, meaning and tips separated | *full run pending* | explanations get only the **meaning** of a term; **tips** ("ask for more time before the deadline") go only to answers to questions. Re-check of the 3 letters that still failed: all checks pass |
+
+  Lessons: retrieval fixed the misunderstood terms at once; the hard part was keeping general knowledge from
+  being presented as part of the letter. A prompt rule helped; separating meaning from tips in the data fixed it
+  structurally. Every wrong sentence found on the way became a meaning check, so it cannot come back unnoticed.
+
 ## Tests
 ```bash
-uv run pytest            # 117 tests, about 3 seconds, no models needed
+uv run pytest            # 167 tests, about 3 seconds, no models needed
 uv run ruff check src tests
 ```
 The tests never call a model. Where the app asks a model, the test plays the model's answer — often a
@@ -311,6 +353,7 @@ The tests never call a model. Where the app asks a model, the test plays the mod
 - **questions:** answers with a date or amount that is not in the letter are retried, then replaced by "the letter does not say this"
 - **pages:** order, an unreadable page is named, a 15+ page letter keeps page 1
 - **model loops:** Ollama aborts a model that repeats itself ("token repeat limit reached") → one retry with a repetition penalty; a photo that still loops is read in two overlapping halves, and only if that fails too counts as unreadable
+- **knowledge base:** entries well-formed with sources and no numbers, the right entries per letter, the notes reach both prompts, and the meaning checks catch the real errors from before RAG
 - **security:** the MCP server refuses `../` paths, absolute paths and links that point outside the allowed folders
 - **translations:** every language has every text, and every language switch fills every label of the page
 
@@ -336,8 +379,8 @@ Each safety rule was switched off once to make sure a test fails without it.
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
-- [x] Tests (117, no models needed) and CI on Linux + Windows, Docker build check
-- [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
+- [x] Tests (167, no models needed) and CI on Linux + Windows, Docker build check
+- [x] Knowledge base (RAG) with sources for official terms; meaning checks in the evaluation (`--no-rag` to compare)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 7 tools (local-first, folder allow-list)
 - [x] Multi-page letters and attachments (several photos/files as one letter, add pages one by one)

@@ -1,0 +1,6 @@
+{
+  "_comment": "Meaning checks for the English explanation (regex, case-insensitive). 'must': the meaning has to be there; 'must_not': a known meaning error.",
+  "must_not": {
+    "told_to_pay": "\\b(you|he|she) (must|needs? to|ha(ve|s) to|should) pay\\b"
+  }
+}

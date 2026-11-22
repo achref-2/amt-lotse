@@ -35,6 +35,9 @@ class Answer:
 
 
 def _ask_model(letter: str, info: LetterInfo, question: str, language: str) -> str:
+    from amt_lotse.knowledge import background
+
+    notes = background(letter, tips=True)      # questions may get the practical tips too
     response = chat(
         model=EXPLAIN_MODEL,
         messages=[
@@ -44,7 +47,10 @@ def _ask_model(letter: str, info: LetterInfo, question: str, language: str) -> s
                     "You answer questions about ONE German official letter for people who do not read German well. "
                     f"You ALWAYS answer in {language}. "
                     "Use ONLY information that is written in the letter. "
-                    f"If the letter does not contain the answer, reply with exactly {NOT_IN_LETTER} and nothing else. "
+                    "Exception: if background notes are given, you may use them to explain what a German term in "
+                    "the letter means or what generally applies to it; then say that this is general information. "
+                    f"If neither the letter nor the notes answer the question, reply with exactly {NOT_IN_LETTER} "
+                    "and nothing else. "
                     "Never guess, never give general legal advice, never say that nothing will happen. "
                     "Answer in 1 to 3 short, simple sentences. Copy dates and amounts exactly from the letter. "
                     "Keep German official terms and explain them in brackets."
@@ -57,11 +63,12 @@ def _ask_model(letter: str, info: LetterInfo, question: str, language: str) -> s
                     f"Facts (trust these): deadline={info.deadline_text}, "
                     f"amount={info.amount_text if info.recipient_must_pay else None}, "
                     f"money_direction={info.money_direction}.\n\n"
-                    f"Question: {question}\n\nAnswer in {language}."
+                    + (f"{notes}\n\n" if notes else "")
+                    + f"Question: {question}\n\nAnswer in {language}."
                 ),
             },
         ],
-        options=options_for(letter, question),
+        options=options_for(letter, question, notes),
     )
     return response["message"]["content"].strip()
 
