@@ -27,7 +27,7 @@ from mcp.types import ToolAnnotations
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LETTER_TYPES = {".txt", ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
-Language = Literal["en", "fr", "ar", "de"]
+Language = Literal["en", "fr", "ar", "de", "tr", "uk", "ru", "fa"]
 Intent = Literal["more-time", "installments", "already-paid", "reschedule", "question"]
 
 server = MCPServer(

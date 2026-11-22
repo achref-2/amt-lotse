@@ -20,6 +20,10 @@ NOT_SAID = {
     "fr": "La lettre ne le dit pas. Demandez au bureau qui l'a envoyée ou à un centre de conseil (Beratungsstelle).",
     "ar": "الرسالة لا تذكر ذلك. من فضلك اسأل المكتب الذي أرسلها أو مركز استشارة (Beratungsstelle).",
     "de": "Das steht nicht im Brief. Fragen Sie bitte das Amt, das den Brief geschickt hat, oder eine Beratungsstelle.",
+    "tr": "Mektupta bu yazmıyor. Lütfen mektubu gönderen kuruma ya da bir danışma merkezine (Beratungsstelle) sorun.",
+    "uk": "У листі про це не сказано. Запитайте в установі, яка його надіслала, або в консультаційному центрі (Beratungsstelle).",
+    "ru": "В письме об этом не сказано. Спросите в ведомстве, которое его прислало, или в консультационном центре (Beratungsstelle).",
+    "fa": "این موضوع در نامه نیامده است. لطفاً از اداره‌ای که نامه را فرستاده یا از یک مرکز مشاوره (Beratungsstelle) بپرسید.",
 }
 
 

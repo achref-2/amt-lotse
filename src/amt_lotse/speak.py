@@ -26,6 +26,10 @@ VOICES = {
     "fr": "fr_FR-siwis-medium",
     "de": "de_DE-thorsten-medium",
     "ar": "ar_JO-kareem-medium",
+    "tr": "tr_TR-dfki-medium",
+    "uk": "uk_UA-ukrainian_tts-medium",
+    "ru": "ru_RU-irina-medium",
+    "fa": "fa_IR-gyro-medium",
 }
 
 MONTHS = {
@@ -37,6 +41,10 @@ MONTHS = {
            "August", "September", "Oktober", "November", "Dezember"],
     "ar": ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو",
            "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
+    "tr": ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
+    "uk": ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"],
+    "ru": ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"],
+    "fa": ["ژانویه", "فوریه", "مارس", "آوریل", "مه", "ژوئن", "ژوئیه", "اوت", "سپتامبر", "اکتبر", "نوامبر", "دسامبر"],
 }
 
 WEEKDAYS = {
@@ -44,6 +52,10 @@ WEEKDAYS = {
     "fr": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
     "de": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
     "ar": ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"],
+    "tr": ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"],
+    "uk": ["понеділок", "вівторок", "середа", "четвер", "пʼятниця", "субота", "неділя"],
+    "ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
+    "fa": ["دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه", "یکشنبه"],
 }
 
 TEXT = {
@@ -123,6 +135,82 @@ TEXT = {
         "help": "إذا لم تكن متأكدا، اطلب من شخص تثق به أو من مركز استشارة أن يراجع الرسالة الأصلية.",
         "bad_photo": "لم أستطع قراءة هذه الرسالة جيدا. من فضلك التقط الصورة مرة أخرى في إضاءة جيدة، مع ظهور الصفحة كاملة، وأمسك الهاتف مستقيما فوقها.",
     },
+    "tr": {
+        "intro": "Bu mektup {sender} tarafından gönderildi.",
+        "deadline": "Önemli: son tarih {date}. Bu, {days} gün sonra.",
+        "deadline_today": "Önemli: son tarih bugün, {date}.",
+        "overdue": "Dikkat: son tarih {date} idi. Bu tarih geçti.",
+        "no_deadline": "Bu mektupta belirli bir son tarih yok.",
+        "pay": "{amount} ödemeniz gerekiyor.",
+        "receive": "{amount} alacaksınız. Hiçbir şey ödemeniz gerekmiyor.",
+        "no_pay": "Hiçbir şey ödemeniz gerekmiyor.",
+        "unclear_amount": "Dikkat: ödenecek bir tutar var ama okuyamadım. Lütfen mektubu biriyle birlikte kontrol edin.",
+        "reference": "Referans numaranız {ref}. Bu numarayı her zaman belirtin.",
+        "explain": "Şimdi açıklama geliyor.",
+        "repeat": "Bir kez daha, en önemli nokta: {action}",
+        "short_deadline": "Son tarih: {date}.",
+        "euro": "{e} avro {c} sent",
+        "euro_round": "{e} avro",
+        "help": "Emin değilseniz, güvendiğiniz birine ya da bir danışma merkezine asıl mektubu kontrol ettirin.",
+        "bad_photo": "Bu mektubu iyi okuyamadım. Lütfen fotoğrafı tekrar çekin: iyi ışıkta, sayfanın tamamı görünecek şekilde ve telefon tam üstünde.",
+    },
+    "uk": {
+        "intro": "Це лист від {sender}.",
+        "deadline": "Важливо: строк — {date}. Залишилося днів: {days}.",
+        "deadline_today": "Важливо: строк спливає сьогодні, {date}.",
+        "overdue": "Увага: строк був {date}. Він уже минув.",
+        "no_deadline": "У цьому листі немає точного строку.",
+        "pay": "Вам потрібно сплатити {amount}.",
+        "receive": "Ви отримаєте {amount}. Платити нічого не потрібно.",
+        "no_pay": "Платити нічого не потрібно.",
+        "unclear_amount": "Увага: у листі є сума до сплати, але я не зміг її прочитати. Перевірте лист разом із кимось.",
+        "reference": "Ваш номер: {ref}. Завжди вказуйте цей номер.",
+        "explain": "Тепер пояснення.",
+        "repeat": "Ще раз найважливіше: {action}",
+        "short_deadline": "Строк: {date}.",
+        "euro": "{e} євро {c} {cents}",
+        "euro_round": "{e} євро",
+        "help": "Якщо ви не впевнені, попросіть людину, якій довіряєте, або консультаційний центр перевірити оригінал листа.",
+        "bad_photo": "Я не зміг добре прочитати цей лист. Сфотографуйте його ще раз: при гарному світлі, щоб було видно всю сторінку, тримаючи телефон прямо над нею.",
+    },
+    "ru": {
+        "intro": "Это письмо от {sender}.",
+        "deadline": "Важно: срок — {date}. Осталось дней: {days}.",
+        "deadline_today": "Важно: срок истекает сегодня, {date}.",
+        "overdue": "Внимание: срок был {date}. Он уже прошёл.",
+        "no_deadline": "В этом письме нет точного срока.",
+        "pay": "Вам нужно заплатить {amount}.",
+        "receive": "Вы получите {amount}. Платить ничего не нужно.",
+        "no_pay": "Платить ничего не нужно.",
+        "unclear_amount": "Внимание: в письме есть сумма к оплате, но я не смог её прочитать. Проверьте письмо вместе с кем-нибудь.",
+        "reference": "Ваш номер: {ref}. Всегда указывайте этот номер.",
+        "explain": "Теперь объяснение.",
+        "repeat": "Ещё раз самое важное: {action}",
+        "short_deadline": "Срок: {date}.",
+        "euro": "{e} евро {c} {cents}",
+        "euro_round": "{e} евро",
+        "help": "Если вы не уверены, попросите человека, которому доверяете, или консультационный центр проверить оригинал письма.",
+        "bad_photo": "Я не смог хорошо прочитать это письмо. Сфотографируйте его ещё раз: при хорошем свете, чтобы была видна вся страница, держа телефон прямо над ней.",
+    },
+    "fa": {
+        "intro": "این نامه از طرف {sender} است.",
+        "deadline": "مهم: مهلت {date} است. یعنی {days} روز دیگر.",
+        "deadline_today": "مهم: مهلت امروز است، {date}.",
+        "overdue": "توجه: مهلت {date} بود. این مهلت گذشته است.",
+        "no_deadline": "در این نامه مهلت مشخصی وجود ندارد.",
+        "pay": "شما باید {amount} پرداخت کنید.",
+        "receive": "شما {amount} دریافت می‌کنید. لازم نیست چیزی پرداخت کنید.",
+        "no_pay": "لازم نیست چیزی پرداخت کنید.",
+        "unclear_amount": "توجه: مبلغی برای پرداخت وجود دارد، اما نتوانستم آن را بخوانم. لطفاً نامه را با کمک کسی بررسی کنید.",
+        "reference": "شمارهٔ مرجع شما {ref} است. همیشه این شماره را ذکر کنید.",
+        "explain": "حالا توضیح.",
+        "repeat": "یک بار دیگر، مهم‌ترین نکته: {action}",
+        "short_deadline": "مهلت: {date}.",
+        "euro": "{e} یورو و {c} سنت",
+        "euro_round": "{e} یورو",
+        "help": "اگر مطمئن نیستید، از کسی که به او اعتماد دارید یا از یک مرکز مشاوره بخواهید نامهٔ اصلی را بررسی کند.",
+        "bad_photo": "نتوانستم این نامه را خوب بخوانم. لطفاً دوباره عکس بگیرید: در نور خوب، طوری که کل صفحه دیده شود و گوشی درست بالای آن باشد.",
+    },
 }
 
 
@@ -145,14 +233,36 @@ def say_date(d: date, lang: str) -> str:
         return f"{weekday} {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
     if lang == "ar":
         return f"يوم {weekday} {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
+    if lang == "tr":
+        return f"{d.day} {MONTHS[lang][d.month - 1]} {d.year} {weekday}"
+    if lang in ("ru", "uk"):
+        # weekday in brackets: after "до" (until) it would need another grammatical case
+        year = "года" if lang == "ru" else "року"
+        return f"{d.day} {MONTHS[lang][d.month - 1]} {d.year} {year} ({weekday})"
+    if lang == "fa":
+        return f"{weekday} {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
     return f"{weekday}, {d.day} {MONTHS[lang][d.month - 1]} {d.year}"
+
+
+# Russian and Ukrainian change the noun after a number: 1 цент, 2 цента, 5 центов. ("евро/євро" never changes.)
+CENT_FORMS = {"ru": ("цент", "цента", "центов"), "uk": ("цент", "центи", "центів")}
+
+
+def plural(n: int, forms: tuple[str, str, str]) -> str:
+    """East Slavic plural: forms = (1, 2-4, 5+), e.g. 1 цент, 3 цента, 11 центов, 21 цент."""
+    if n % 10 == 1 and n % 100 != 11:
+        return forms[0]
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return forms[1]
+    return forms[2]
 
 
 def say_amount(amount: Decimal, lang: str) -> str:
     euros = int(amount)
     cents = int((amount - euros) * 100)
     template = TEXT[lang]["euro"] if cents else TEXT[lang]["euro_round"]
-    return template.format(e=euros, c=cents)
+    cents_word = plural(cents, CENT_FORMS[lang]) if lang in CENT_FORMS else ""
+    return template.format(e=euros, c=cents, cents=cents_word)
 
 
 def say_reference(ref: str) -> str:

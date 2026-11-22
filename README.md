@@ -10,7 +10,7 @@ Letters from the Jobcenter, the Krankenkasse, the Finanzamt or the Ausländerbeh
 - **blind and visually impaired people** who cannot read a paper letter,
 - **older people** who find small print and official language overwhelming.
 
-Amt-Lotse reads the letter — as text, PDF or **a photo**, in a simple **web UI** or on the command line — and tells you in simple words: **who sent it, the deadline, how much you have to pay (or receive), and what you have to do**. In English, French, Arabic or simple German, **read aloud** if you want, and it can **draft a reply** in formal German.
+Amt-Lotse reads the letter — as text, PDF or **a photo**, in a simple **web UI** or on the command line — and tells you in simple words: **who sent it, the deadline, how much you have to pay (or receive), and what you have to do**. In **8 languages** (English, French, Arabic, Turkish, Ukrainian, Russian, Persian and simple German), **read aloud** if you want, and it can **draft a reply** in formal German.
 
 ## Screenshots
 All screenshots use fictional test letters from `data/`.
@@ -72,7 +72,10 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
   context that fits the letter (up to 16k tokens); letters beyond ~15 pages are cut at the end instead, with a warning.
 - **Local OCR** with a vision model (Qwen2.5-VL 3B); unreadable or cut-off photos are detected → "take the photo again"
 - **Structured extraction** – sender, deadline, amount, reference number, required action (JSON schema output)
-- **Plain-language explanation** in English, French, Arabic or simple German (`--lang en|fr|ar|de`)
+- **Plain-language explanation** in English, French, Arabic, Turkish, Ukrainian, Russian, Persian (Farsi) or simple German
+  (`--lang en|fr|ar|tr|uk|ru|fa|de`) – the languages of the largest immigrant groups in Germany. Arabic and Persian are
+  shown right to left; the code checks that the model really answered in the chosen language (Russian vs. Ukrainian,
+  Arabic vs. Persian included) and asks again if not
 - **Read aloud** (`--speak`), designed for accessibility:
   - key facts first, built from the checked extraction (not from free LLM text)
   - dates and amounts spoken as words, reference numbers spelled out
@@ -174,7 +177,7 @@ Voices for `--speak` are downloaded automatically on first use (into `voices/`).
 
 | Option | Effect |
 |---|---|
-| `--lang en\|fr\|ar\|de` | language of the explanation, audio and reply summary |
+| `--lang en\|fr\|ar\|tr\|uk\|ru\|fa\|de` | language of the explanation, audio and reply summary |
 | `--speak` | read aloud and save as `audio/<letter>_<lang>.wav` |
 | `--ask "…"` / `--ask-voice file.wav` | a question about the letter, typed or spoken, answered only from the letter |
 | `--normal-speed` | normal speaking speed (default is slower) |
@@ -192,7 +195,7 @@ or local agents can use it as tools — e.g. *"What do I have to do with the let
 |---|---|
 | `list_letters` | letters (text, PDF, photos) in the allowed folders |
 | `get_letter_facts` | code-checked facts: sender, deadline, days left, amount to pay/receive, reference number, one "what to do" sentence |
-| `explain_letter` | facts + plain-language explanation in en/fr/ar/de (local model) |
+| `explain_letter` | facts + plain-language explanation in 8 languages (local model) |
 | `ask_about_letter` | answers a question using only what the letter says; says so when the letter doesn't answer it |
 | `draft_reply` | formal German reply with `[placeholders]`; invented numbers are replaced |
 | `create_calendar_reminder` | `.ics` file with reminders 3 days and 1 day before the deadline |
@@ -235,10 +238,10 @@ extract (Qwen2.5 3B, JSON schema) ──► rule-based guardrails ──► summ
 | `src/amt_lotse/extract.py` | LLM extraction, date/amount parsing, guardrails |
 | `src/amt_lotse/app.py` | Gradio web UI |
 | `src/amt_lotse/mcp_server.py` | MCP server: the pipeline as tools for AI assistants |
-| `src/amt_lotse/pipeline.py` | shared pipeline for the UI, summary card in 4 languages |
+| `src/amt_lotse/pipeline.py` | shared pipeline for the UI, summary card in 8 languages |
 | `src/amt_lotse/cli.py` | `amt-lotse` command, explanation, language check |
 | `src/amt_lotse/reply.py` | reply drafts in formal German |
-| `src/amt_lotse/speak.py` | spoken script in 4 languages, Piper TTS |
+| `src/amt_lotse/speak.py` | spoken script in 8 languages, Piper TTS (offline voices, downloaded once per language) |
 | `src/amt_lotse/evaluate.py` | scores the extractor against `data/eval/` |
 | `src/amt_lotse/evaluate_text.py` | rule-based checks for explanation and reply texts |
 
@@ -252,7 +255,7 @@ The test letters contain deliberate traps: several dates where only one is a dea
 | qwen2.5:3b + guardrails | **36/36** | ~35 s |
 
 ### Explanation and reply texts
-`uv run python -m amt_lotse.evaluate_text --lang en` (or `fr`, `ar`, `de`) runs the full pipeline on all eval letters and checks the free text with rules — no human labels, no "LLM judge":
+`uv run python -m amt_lotse.evaluate_text --lang en` (or `fr`, `ar`, `tr`, `uk`, `ru`, `fa`, `de`) runs the full pipeline on all eval letters and checks the free text with rules — no human labels, no "LLM judge":
 
 | Explanation | Reply draft |
 |---|---|
@@ -284,7 +287,7 @@ What the extraction eval taught us:
 
 ## Tests
 ```bash
-uv run pytest            # 82 tests, about 3 seconds, no models needed
+uv run pytest            # 116 tests, about 3 seconds, no models needed
 uv run ruff check src tests
 ```
 The tests never call a model. Where the app asks a model, the test plays the model's answer — often a
@@ -312,6 +315,7 @@ Each safety rule was switched off once to make sure a test fails without it.
 - [x] Local LLM reads a sample letter
 - [x] Structured extraction + evaluation set (12 letters with traps, 36/36)
 - [x] Explanations in English, French, Arabic and simple German
+- [x] Turkish, Ukrainian, Russian and Persian (Farsi): UI, audio, to-do box, dates and plurals written by hand, language checks
 - [x] Read aloud with offline TTS, accessibility-first
 - [x] OCR for photos and scanned PDFs
 - [x] Reply drafts in formal German
@@ -319,7 +323,7 @@ Each safety rule was switched off once to make sure a test fails without it.
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
-- [x] Tests (82, no models needed) and CI on Linux + Windows, Docker build check
+- [x] Tests (116, no models needed) and CI on Linux + Windows, Docker build check
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 7 tools (local-first, folder allow-list)

@@ -31,7 +31,11 @@ FALSE_REASSURANCE = re.compile(
     r"nothing (will|would) happen|no consequences?|does not (specify|mention|say)|not specified|"
     r"no further action|keine (folgen|konsequenzen)|passiert nichts|"
     r"rien ne se passera|aucune conséquence|ne précise pas|"
-    r"لن يحدث شيء|لا توجد عواقب",
+    r"لن يحدث شيء|لا توجد عواقب|"
+    r"hiçbir şey olmaz|hiçbir sonucu (yok|olmaz)|"
+    r"ничего не (будет|произойд[её]т|случится)|никаких последствий|"
+    r"нічого не (буде|станеться)|жодних наслідків|"
+    r"هیچ اتفاقی نمی‌افتد|هیچ پیامدی ندارد",
     re.IGNORECASE,
 )
 AMOUNT_ANY = re.compile(r"\d{1,3}(?:[.,  ]\d{3})*[.,]\d{2}(?!\d)")

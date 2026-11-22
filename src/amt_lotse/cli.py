@@ -29,17 +29,29 @@ from amt_lotse.extract import (
     parse_german_date,
 )
 
-LANGUAGES = {"en": "English", "fr": "French", "ar": "Arabic", "de": "simple German (A2 level)"}
+LANGUAGES = {
+    "en": "English", "fr": "French", "ar": "Arabic", "de": "simple German (A2 level)",
+    "tr": "Turkish", "uk": "Ukrainian", "ru": "Russian", "fa": "Persian (Farsi)",
+}
+RTL_LANGUAGES = {"ar", "fa"}      # written right to left
 
 # Extraction works well with 3B, but writing in other languages needs a bigger model.
 # Override with: $env:AMT_LOTSE_EXPLAIN_MODEL="qwen2.5:3b"
 EXPLAIN_MODEL = os.environ.get("AMT_LOTSE_EXPLAIN_MODEL", "qwen2.5:7b")
 
 ARABIC_SCRIPT = re.compile(r"[\u0600-\u06FF]")
+CYRILLIC = re.compile(r"[\u0400-\u04FF\u02BC]")       # \u02BC: the Ukrainian apostrophe in "пʼятниця"
+PERSIAN_ONLY = re.compile(r"[پچژگکی]")                  # letters Persian has and Arabic doesn't (Arabic uses ك ي)
+RUSSIAN_ONLY = re.compile(r"[ыэъё]", re.IGNORECASE)
+UKRAINIAN_ONLY = re.compile(r"[іїєґ]", re.IGNORECASE)
 # Qwen sometimes leaks characters from other scripts (Korean, Chinese, Thai, Hindi, ...).
 # Allowed: Latin (incl. German umlauts and French accents), Arabic, digits, punctuation, € and spaces.
 FOREIGN_SCRIPT = re.compile(
     r"[^\u0000-\u024F\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF\u2000-\u206F\u20AC\s]"
+)
+# Russian and Ukrainian answers may of course use Cyrillic; for every other language it is a leak.
+FOREIGN_SCRIPT_CYRILLIC = re.compile(
+    r"[^\u0000-\u024F\u02BC\u0400-\u04FF\u2000-\u206F\u20AC\s]"
 )
 
 
@@ -99,14 +111,30 @@ def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
 
 def is_in_language(text: str, lang_code: str) -> bool:
     """Cheap check that the model really answered in the requested language."""
-    if FOREIGN_SCRIPT.search(text):
+    foreign = FOREIGN_SCRIPT_CYRILLIC if lang_code in ("ru", "uk") else FOREIGN_SCRIPT
+    if foreign.search(text):
         return False
-    if lang_code == "ar":
-        # count letters only: digits, dates and "€" are the same in every language
-        # (a short answer like "ادفع 56,13 € قبل 04.12.2026." is clearly Arabic)
-        letters = [c for c in text if c.isalpha()]
-        return len(ARABIC_SCRIPT.findall(text)) > len(letters) * 0.3
-    if lang_code in ("en", "fr"):
+    # count letters only: digits, dates and "€" are the same in every language
+    # (a short answer like "ادفع 56,13 € قبل 04.12.2026." is clearly Arabic)
+    letters = len([c for c in text if c.isalpha()])
+    if lang_code in ("ar", "fa"):
+        if len(ARABIC_SCRIPT.findall(text)) <= letters * 0.3:
+            return False
+        # Arabic instead of Persian (or the other way round) looks almost the same; these letters tell them apart
+        persian = len(PERSIAN_ONLY.findall(text))
+        if lang_code == "fa":
+            return persian >= 2 or letters < 30      # very short answers may not contain one
+        return persian <= 2
+    if lang_code in ("ru", "uk"):
+        if len(CYRILLIC.findall(text)) <= letters * 0.3:
+            return False
+        # Russian answer for a Ukrainian user, or the other way round: the two share most letters.
+        ukrainian, russian = len(UKRAINIAN_ONLY.findall(text)), len(RUSSIAN_ONLY.findall(text))
+        if lang_code == "ru":
+            return ukrainian < 2
+        # longer Ukrainian text practically always has і, ї or є; Russian never does
+        return russian < 2 and (ukrainian > 0 or letters < 30)
+    if lang_code in ("en", "fr", "tr"):
         german_markers = len(re.findall(r"\b(der|die|das|und|ist|nicht|wird|Sie)\b", text))
         return german_markers < 3
     return True
