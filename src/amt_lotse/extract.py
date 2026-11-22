@@ -37,7 +37,31 @@ RATE_PATTERN = re.compile(
 )
 AMOUNT_PATTERN = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}\s*(?:€|EUR|Euro)?")
 
-client = ollama.Client(timeout=TIMEOUT_SECONDS)
+# Where the AI runs. Normally: Ollama on this computer (OLLAMA_HOST, default 127.0.0.1:11434).
+# In the always-online version (Hugging Face Space) the app runs in the cloud and the AI stays on the owner's PC,
+# reached privately through Tailscale: OLLAMA_HOST=http://<pc>.<tailnet>.ts.net:11434 and
+# AMT_LOTSE_OLLAMA_PROXY=socks5://localhost:1055 (the Space's Tailscale; see deploy/huggingface).
+OLLAMA_PROXY = os.environ.get("AMT_LOTSE_OLLAMA_PROXY") or None
+
+
+def client_options() -> dict:
+    options: dict = {"timeout": TIMEOUT_SECONDS}
+    if OLLAMA_PROXY:
+        # Ollama on the PC listens only on 127.0.0.1 and refuses requests for other host names (protection against
+        # DNS rebinding). 'tailscale serve' passes the connection on unchanged, so the request is addressed to localhost.
+        options |= {"proxy": OLLAMA_PROXY, "headers": {"Host": "localhost"}}
+    return options
+
+
+client = ollama.Client(**client_options())
+
+
+def ai_online(timeout: float = 4.0) -> bool:
+    """Is the AI reachable right now? One tiny request; no model is loaded."""
+    try:
+        return client._client.get("/api/version", timeout=timeout).status_code == 200
+    except Exception:
+        return False
 
 # Ollama's default context is about 4000 tokens. When a prompt is longer, Ollama silently drops the BEGINNING,
 # and page 1 is where the deadline and the amount are. So every call asks for a context that fits the letter.

@@ -36,8 +36,18 @@ import gradio as gr  # noqa: E402
 
 from amt_lotse.ask import answer_question
 from amt_lotse.cli import LANGUAGES, RTL_LANGUAGES, explain
-from amt_lotse.extract import ModelLoopError
-from amt_lotse.pipeline import analyze, calendar_file, summary_card, todo_box
+from amt_lotse.extract import ModelLoopError, ai_online
+from amt_lotse.landing import (
+    TEXT,
+    ai_status_html,
+    art_html,
+    brand_html,
+    example_labels,
+    facts_html,
+    hero_html,
+    info_html,
+)
+from amt_lotse.pipeline import analyze, calendar_file, todo_box
 from amt_lotse.reply import build_reply
 from amt_lotse.speak import SpokenFacts, build_script, speak
 
@@ -422,39 +432,153 @@ UI = {
 
 # ---------------------------------------------------------------- look & feel
 CSS = """
-:root { --amt-scale: 1; }
-.gradio-container { --amt-base: calc(20px * var(--amt-scale)); max-width: 920px !important; margin: auto; }
+:root { --amt-scale: 1; --amt-blue: #1f5fd1; --amt-blue-dark: #174bb0; --amt-ink: #0f1b33; --amt-muted: #45536e;
+  --amt-surface: #ffffff; --amt-soft: #f1f5fe; --amt-line: #dbe4f5; --amt-amber: #ffbf47; --amt-red: #c40000;
+  --amt-green: #0f8a45; --amt-shadow: 0 1px 2px rgba(15,27,51,.06), 0 12px 32px -12px rgba(15,27,51,.18); }
+.dark { --amt-ink: #e8eefc; --amt-muted: #aab6cd; --amt-surface: #131b2c; --amt-soft: #18223a; --amt-line: #2a3650;
+  --amt-shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -12px rgba(0,0,0,.6); }
+body, gradio-app { background: radial-gradient(1200px 520px at 85% -10%, #dfe9ff 0%, transparent 60%),
+  radial-gradient(900px 480px at -10% 10%, #fff3d6 0%, transparent 55%), #f7f9fe !important; }
+.dark body, body.dark, .dark gradio-app { background: radial-gradient(1200px 520px at 85% -10%, #15254a 0%, transparent 60%), #0b1220 !important; }
+.gradio-container { --amt-base: calc(20px * var(--amt-scale)); max-width: 1120px !important; margin: auto;
+  background: transparent !important; color: var(--amt-ink); }
 /* Gradio sets its own px sizes on inner elements, so every text element gets the base size directly. */
 .gradio-container p, .gradio-container li, .gradio-container label, .gradio-container label span,
-.gradio-container input, .gradio-container textarea, .gradio-container button, .gradio-container .prose {
+.gradio-container input, .gradio-container textarea, .gradio-container button, .gradio-container .prose,
+.gradio-container .label-wrap span {
   font-size: var(--amt-base) !important; line-height: 1.6 !important; }
-.gradio-container h1 { font-size: calc(var(--amt-base) * 2) !important; }
-.gradio-container h2 { font-size: calc(var(--amt-base) * 1.4) !important; margin-top: 1.2em !important; }
-.gradio-container button { min-height: 56px; }
-#go, #go button { font-size: calc(var(--amt-base) * 1.3) !important; min-height: 76px !important; }
-#more { display: none !important; }      /* only opened by the "Add the next page" button */
-#camera { font-size: calc(var(--amt-base) * 1.2) !important; min-height: 72px !important; }
-/* phones: no wasted space at the sides, everything one thumb away */
-@media (max-width: 600px) {
-  .gradio-container { padding: 8px !important; }
-  #toolbar { flex-direction: row !important; flex-wrap: nowrap !important; gap: 6px !important; }
-  #toolbar > *, #toolbar button { min-width: 0 !important; flex: 1 1 0 !important; }
-  #toolbar button { padding: 4px 6px !important; font-size: calc(var(--amt-base) * 0.72) !important; white-space: normal; }
-  .gradio-container h1 { font-size: calc(var(--amt-base) * 1.6) !important; margin-top: 4px !important; }
-}
-#lang label { padding: 12px 18px !important; }
-#lang input[type=radio] { width: 22px !important; height: 22px !important; }
-.gr-accordion { overflow: visible !important; }
-:focus-visible { outline: 4px solid #ffbf47 !important; outline-offset: 3px !important; }
+.gradio-container h2 { font-size: calc(var(--amt-base) * 1.35) !important; margin: .2em 0 .4em !important; letter-spacing: -.01em; }
+.gradio-container h3 { font-size: calc(var(--amt-base) * 1.12) !important; }
+.gradio-container button { min-height: 56px; border-radius: 14px !important; font-weight: 650 !important; }
+.gradio-container .block { border-radius: 16px !important; }
+.gradio-container .label-wrap { padding: 14px 18px !important; font-weight: 650; }
 
+/* top bar: logo left, text size and contrast right */
+#topbar { align-items: center; justify-content: space-between; flex-wrap: nowrap !important; gap: 12px;
+  padding: 6px 0 2px; background: transparent !important; border: 0 !important; }
+#topbar > * { flex: 0 1 auto !important; min-width: 0 !important; }
+.brand { display: flex; align-items: center; gap: 12px; white-space: nowrap; font-weight: 800; letter-spacing: -.02em;
+  font-size: calc(var(--amt-base) * 1.3); color: var(--amt-ink); }
+.brand svg { width: 46px; height: 46px; flex: none; }
+#toolbar { justify-content: flex-end; gap: 8px; flex-wrap: nowrap !important; background: transparent !important; border: 0 !important; }
+#toolbar button { min-height: 46px !important; padding: 6px 14px !important; background: var(--amt-surface) !important;
+  border: 1.5px solid var(--amt-line) !important; color: var(--amt-ink) !important; box-shadow: none !important;
+  font-size: calc(var(--amt-base) * .8) !important; white-space: nowrap; width: auto !important; flex: none !important;
+  display: inline-flex !important; align-items: center; }
+#toolbar button::after { content: var(--amt-label, ""); font-weight: 500; margin-inline-start: 6px; }
+#bigger { --amt-label: var(--amt-bigger); } #smaller { --amt-label: var(--amt-smaller); } #contrast { --amt-label: var(--amt-contrast); }
+
+/* languages: a grid of big pills, the chosen one filled */
+#langs { background: var(--amt-surface) !important; border: 1.5px solid var(--amt-line) !important; border-radius: 20px !important;
+  padding: 10px 14px 14px !important; box-shadow: var(--amt-shadow); margin-top: 8px; }
+#langs .prose p { margin: 0 0 6px !important; font-weight: 700; color: var(--amt-muted); font-size: calc(var(--amt-base) * .85) !important; }
+#langs .form, #tool .form { background: transparent !important; border: 0 !important; box-shadow: none !important; gap: 8px !important; }
+#lang { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+#lang .wrap { background: transparent !important; padding: 0 !important; display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px !important; }
+#lang label { justify-content: center; padding: 10px 12px !important; border-radius: 999px !important; border: 1.5px solid var(--amt-line) !important;
+  background: var(--amt-soft) !important; box-shadow: none !important; transition: transform .12s ease, box-shadow .12s ease; cursor: pointer; }
+#lang label:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -8px rgba(31,95,209,.5) !important; }
+#lang label.selected { background: var(--amt-blue) !important; border-color: var(--amt-blue) !important; }
+#lang label.selected, #lang label.selected * { color: #fff !important; }
+#lang input[type=radio] { position: absolute; opacity: 0; width: 1px !important; height: 1px !important; }
+#lang label:has(input:focus-visible) { outline: 4px solid var(--amt-amber); outline-offset: 2px; }
+
+/* hero */
+#hero-row { align-items: center; gap: 24px; margin: 26px 0 8px; }
+.hero .eyebrow { display: inline-block; margin: 0 0 12px !important; padding: 6px 14px; border-radius: 999px;
+  background: #e6eeff; color: #143f94 !important; font-weight: 700; font-size: calc(var(--amt-base) * .8) !important; }
+.dark .hero .eyebrow { background: #1b2c52; color: #bcd0ff !important; }
+.hero h1 { font-size: calc(var(--amt-base) * 2.6) !important; line-height: 1.08 !important; letter-spacing: -.035em; margin: 0 0 16px !important;
+  font-weight: 850; color: var(--amt-ink); }
+.hero .lead { font-size: calc(var(--amt-base) * 1.1) !important; color: var(--amt-muted); margin: 0 0 18px !important; max-width: 36em; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0 !important; margin: 0 !important; }
+.badges li { margin: 0 !important; padding: 7px 14px 7px 12px; border-radius: 999px; background: var(--amt-surface); border: 1.5px solid var(--amt-line);
+  font-weight: 650; font-size: calc(var(--amt-base) * .78) !important; color: var(--amt-ink); }
+.badges li::before { content: "✓"; color: var(--amt-green); font-weight: 900; margin-inline-end: 7px; }
+.hero-art { display: flex; justify-content: center; }
+.hero-art .art { width: 100%; max-width: 400px; height: auto; animation: amt-float 6s ease-in-out infinite; }
+@keyframes amt-float { 50% { transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .hero-art .art { animation: none; } * { transition: none !important; } }
+
+/* the tool: one card, one main button */
+#tool { background: var(--amt-surface) !important; border: 1.5px solid var(--amt-line) !important; border-radius: 24px !important;
+  padding: 22px 24px !important; box-shadow: var(--amt-shadow); gap: 14px !important; margin-top: 10px; }
+#tool .prose p { color: var(--amt-muted); }
+#camera { font-size: calc(var(--amt-base) * 1.25) !important; min-height: 78px !important; border: 0 !important;
+  background: linear-gradient(135deg, #2a6be0, #1748a8) !important; color: #fff !important;
+  box-shadow: 0 10px 24px -10px rgba(23,72,168,.8) !important; transition: transform .12s ease, box-shadow .12s ease; }
+#camera:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -12px rgba(23,72,168,.9) !important; }
+#letter { border: 2px dashed #9fb7e6 !important; background: var(--amt-soft) !important; min-height: 150px; }
+#letter:hover { border-color: var(--amt-blue) !important; }
+#letter [data-testid=upload-text] { color: var(--amt-ink) !important; }
+/* Gradio's own "Drop File Here - or - Click to Upload" is English only: hidden, the translated text shown instead */
+#letter [data-testid=upload-text] { font-size: 0 !important; }
+#letter [data-testid=upload-text] .or { display: none !important; }
+#letter [data-testid=upload-text]::after { content: var(--amt-drop, ""); font-weight: 650; font-size: var(--amt-base); display: block; margin-top: 6px; line-height: 1.4; }
+#examples-h p { margin: 6px 0 0 !important; font-size: calc(var(--amt-base) * .85) !important; font-weight: 700; color: var(--amt-muted) !important; }
+#examples { gap: 8px !important; flex-wrap: wrap !important; }
+#examples button { flex: 1 1 200px !important; min-height: 50px; background: var(--amt-surface) !important; color: var(--amt-ink) !important;
+  border: 1.5px solid var(--amt-line) !important; box-shadow: none !important; font-size: calc(var(--amt-base) * .82) !important;
+  font-weight: 600 !important; justify-content: flex-start; }
+#examples button:hover { border-color: var(--amt-blue) !important; background: var(--amt-soft) !important; }
+#more { display: none !important; }      /* only opened by the "Add the next page" button */
+
+/* status line: a calm pill, with a spinner while working */
+#status p { margin: 0 !important; font-weight: 700; }
+#status .busy, #status .done, #status .err { display: inline-flex; align-items: center; gap: 12px; padding: 10px 18px; border-radius: 999px; }
+#status .busy { background: #e6eeff; color: #143f94 !important; }
+#status .done { background: #e3f6ea; color: #0b5d2e !important; }
+#status .err { background: #ffecec; color: #6b0000 !important; }
+#status .busy::before { content: ""; width: 20px; height: 20px; flex: none; border-radius: 50%; border: 3px solid currentColor;
+  border-right-color: transparent; animation: amt-spin .8s linear infinite; }
+#status .done::before { content: "✓"; font-weight: 900; }
+@keyframes amt-spin { to { transform: rotate(360deg); } }
+
+/* online version: AI computer on or off */
+#ai-status:not(:has(.ai-on)):not(:has(.ai-off)) { display: none !important; }   /* no commas inside :has(): Gradio rewrites them */
+.ai-on { display: inline-flex; align-items: center; gap: 8px; margin: 0 !important; padding: 6px 14px; border-radius: 999px;
+  background: #e3f6ea; color: #0b5d2e !important; font-weight: 700; font-size: calc(var(--amt-base) * .8) !important; }
+.ai-on::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #12a150; box-shadow: 0 0 0 4px rgba(18,161,80,.2); }
+.ai-off { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; border-radius: 16px; background: #fff4e5 !important;
+  border: 2px solid #e08a00; }
+.ai-off, .ai-off * { color: #4a2c00 !important; }                 /* contrast 11:1 */
+.ai-off strong { font-size: calc(var(--amt-base) * 1.1); }
+.ai-off strong::before { content: "⏻  "; }
+/* result */
+#result { background: var(--amt-surface) !important; border: 1.5px solid var(--amt-line) !important; border-radius: 24px !important;
+  padding: 22px 24px !important; box-shadow: var(--amt-shadow); margin-top: 18px; gap: 16px !important; animation: amt-in .35s ease both; }
+@keyframes amt-in { from { opacity: 0; transform: translateY(12px); } }
 /* Colours forced on every child: the dark theme otherwise paints light text on the light box (contrast 1:1). */
-.todo { border-radius: 14px; padding: 18px 22px; margin: 6px 0 4px; background: #e8f1ff !important; border: 3px solid #2f6fdb; }
+.todo { border-radius: 18px; padding: 20px 24px; margin: 0; background: #e8f1ff !important; border: 3px solid #2f6fdb; }
 .todo, .todo * { color: #08245c !important; }            /* contrast 13:1 */
 .todo.urgent { background: #ffecec !important; border-color: #c40000; }
 .todo.urgent, .todo.urgent * { color: #6b0000 !important; }  /* contrast 11:1 */
-.todo .when { font-weight: 800; font-size: calc(var(--amt-base) * 1.1) !important; margin-bottom: 4px; }
-.todo .what { font-size: calc(var(--amt-base) * 1.35) !important; line-height: 1.5; }
-#card { font-size: 1.1em; }
+.todo .when { display: inline-block; font-weight: 800; font-size: calc(var(--amt-base) * .9) !important; margin-bottom: 6px;
+  padding: 3px 12px; border-radius: 999px; background: rgba(255,255,255,.7) !important; text-transform: uppercase; letter-spacing: .04em; }
+.todo .what { font-size: calc(var(--amt-base) * 1.45) !important; line-height: 1.45; font-weight: 500; }
+#actions { gap: 10px !important; flex-wrap: wrap !important; }
+#actions > *, #actions button, #actions a { flex: 1 1 260px !important; }
+#actions button { background: var(--amt-soft) !important; color: var(--amt-ink) !important; border: 1.5px solid var(--amt-line) !important; box-shadow: none !important; }
+#actions button:hover { border-color: var(--amt-blue) !important; }
+#listen button, button#listen { background: var(--amt-blue) !important; color: #fff !important; border-color: var(--amt-blue) !important; }
+#audio { border: 1.5px solid var(--amt-line) !important; background: var(--amt-soft) !important; }
+.facts ul { list-style: none; padding: 0 !important; margin: 0 !important; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.facts .fact { margin: 0 !important; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px;
+  padding: 14px 16px; border-radius: 16px; background: var(--amt-soft); border: 1.5px solid var(--amt-line); }
+.facts .ico { grid-row: span 2; font-size: calc(var(--amt-base) * 1.5); line-height: 1.2; }
+.facts .label { font-size: calc(var(--amt-base) * .78) !important; font-weight: 700; color: var(--amt-muted); text-transform: uppercase; letter-spacing: .04em; }
+.facts .value { font-weight: 650; color: var(--amt-ink); overflow-wrap: anywhere; }
+.facts .value small { display: block; font-weight: 500; color: var(--amt-muted); font-size: calc(var(--amt-base) * .8); }
+.facts .money { font-size: calc(var(--amt-base) * 1.35); font-weight: 800; }
+.facts .fact.hot { background: #fff1f1; border-color: #f1b3b3; } .facts .fact.hot .value, .facts .fact.hot .value small { color: #6b0000; }
+.facts .fact.good { background: #ebf8f0; border-color: #a9dcbc; } .facts .fact.good .value { color: #0b5d2e; }
+.facts .ref { font-family: ui-monospace, Consolas, monospace; letter-spacing: .08em; }
+.facts .warn { margin: 0 0 10px !important; padding: 10px 14px; border-radius: 12px; background: #fff6e0; color: #4a2c00 !important; }
+#explanation { padding: 18px 22px !important; border-radius: 18px; background: var(--amt-soft); border-inline-start: 6px solid var(--amt-blue); }
+#explanation h3 { margin-top: 0 !important; }
+#explanation:not(:has(h3)) { display: none !important; }   /* nothing explained (yet): no empty box */
+#ask-card { background: var(--amt-soft) !important; border: 1.5px solid var(--amt-line) !important; border-radius: 20px !important; padding: 18px 20px !important; gap: 10px !important; }
+#ask-card .prose h3 { margin: 0 !important; }
 .answer { border-radius: 14px; padding: 16px 20px; background: #eef7f0 !important; border: 3px solid #12a150; }
 .answer, .answer * { color: #0b3d1f !important; }            /* contrast 12:1 */
 .answer.unknown { background: #fff6e0 !important; border-color: #b86e00; }
@@ -462,18 +586,57 @@ CSS = """
 .answer .q { font-style: italic; margin: 0 0 6px !important; }
 .answer .a { font-size: calc(var(--amt-base) * 1.2) !important; margin: 0 !important; }
 #ask-mic, #note-mic { min-height: 0; }
-#card .ref { font-family: ui-monospace, Consolas, monospace; font-size: 1.15em; letter-spacing: 0.08em; }
-#status { font-weight: 700; min-height: 1.6em; }
-#toolbar { justify-content: flex-end; gap: 8px; }
-#toolbar button { min-height: 44px; font-size: calc(var(--amt-base) * 0.85) !important; }
 
-/* High contrast: yellow on black, thick borders */
-body.amt-hc, body.amt-hc .gradio-container, body.amt-hc .gradio-container * {
-  background: #000 !important; color: #ffeb3b !important; border-color: #ffeb3b !important; }
-body.amt-hc .todo, body.amt-hc button { border: 3px solid #ffeb3b !important; }
-/* the chosen option and the main button are shown inverted: black on yellow */
-html body.amt-hc #lang label.selected, html body.amt-hc #go { background-color: #ffeb3b !important; color: #000 !important; }
-html body.amt-hc #lang label.selected *, html body.amt-hc #go * { background-color: transparent !important; color: #000 !important; }
+/* how it works + features */
+.info { margin: 40px 0 10px; }
+.info h2 { text-align: center; margin: 28px 0 18px !important; font-size: calc(var(--amt-base) * 1.6) !important; font-weight: 800; }
+.steps, .feats { list-style: none; padding: 0 !important; margin: 0 !important; display: grid; gap: 16px; }
+.steps { grid-template-columns: repeat(3, minmax(0, 1fr)); counter-reset: none; }
+.feats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.steps li, .feats li { margin: 0 !important; padding: 22px; border-radius: 20px; background: var(--amt-surface); border: 1.5px solid var(--amt-line); box-shadow: var(--amt-shadow); }
+.steps h3, .feats h3 { margin: 10px 0 4px !important; color: var(--amt-ink); }
+.steps p, .feats p { margin: 0 !important; color: var(--amt-muted); }
+.steps .num { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--amt-blue); color: #fff;
+  font-weight: 800; font-size: calc(var(--amt-base) * 1.1); }
+.feats .ico { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: var(--amt-soft); font-size: 26px; }
+#footer { margin-top: 18px; padding-top: 14px; border-top: 1.5px solid var(--amt-line); }
+#footer p { color: var(--amt-muted); font-size: calc(var(--amt-base) * .82) !important; text-align: center; }
+
+/* phones: one column, no wasted space, everything one thumb away */
+@media (max-width: 720px) {
+  .gradio-container { padding: 8px 10px !important; }
+  #toolbar button { padding: 4px 10px !important; min-width: 46px !important; }
+  #toolbar button::after { content: none; }
+  .brand { font-size: calc(var(--amt-base) * 1.1); } .brand svg { width: 38px; height: 38px; }
+  #lang .wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px !important; }
+  #lang label { padding: 8px 6px !important; } #lang label span { font-size: calc(var(--amt-base) * .82) !important; white-space: nowrap; }
+  .badges li { font-size: calc(var(--amt-base) * .7) !important; padding: 5px 10px; }
+  .hero .eyebrow { font-size: calc(var(--amt-base) * .7) !important; }
+  #hero-row { margin: 14px 0 0; flex-direction: column; }
+  .hero-art { display: none; }
+  .hero h1 { font-size: calc(var(--amt-base) * 1.75) !important; }
+  .hero .lead { font-size: var(--amt-base) !important; }
+  #tool, #result { padding: 16px !important; border-radius: 20px !important; }
+  #letter { min-height: 110px; }
+  .steps, .feats, .facts ul { grid-template-columns: 1fr; }
+  .todo .what { font-size: calc(var(--amt-base) * 1.25) !important; }
+}
+:focus-visible { outline: 4px solid #ffbf47 !important; outline-offset: 3px !important; }
+
+/* High contrast: yellow on black, thick borders.
+   Gradio copies every rule above with an extra ".gradio-container .contain" prefix, which makes them strong.
+   :is(.gradio-container, #amt-hc#amt-hc) still matches only .gradio-container, but counts like two ids, so these win. */
+body.amt-hc { --amt-ink: #ffeb3b; --amt-muted: #ffeb3b; --amt-surface: #000; --amt-soft: #000; --amt-line: #ffeb3b;
+  --amt-blue: #ffeb3b; --amt-shadow: none; }
+body.amt-hc, body.amt-hc gradio-app, body.amt-hc .gradio-container,
+body.amt-hc :is(.gradio-container, #amt-hc#amt-hc) * {
+  background: #000 !important; color: #ffeb3b !important; border-color: #ffeb3b !important; box-shadow: none !important; }
+body.amt-hc :is(.gradio-container, #amt-hc#amt-hc) :is(.todo, button, .fact, #tool, #result, .steps li, .feats li, #lang label, #langs) {
+  border: 3px solid #ffeb3b !important; }
+/* the chosen language and the main buttons are shown inverted: black on yellow */
+body.amt-hc :is(.gradio-container, #amt-hc#amt-hc#amt-hc) :is(#lang label.selected, #camera, #listen, .steps .num),
+body.amt-hc :is(.gradio-container, #amt-hc#amt-hc#amt-hc) :is(#lang label.selected, #camera, #listen, .steps .num) * {
+  background: #ffeb3b !important; color: #000 !important; }
 """
 
 # Phone app (PWA): name, colours and icon for the home screen. Gradio adds manifest.json itself (pwa=True).
@@ -518,9 +681,25 @@ MORE_JS = """
 }
 """
 
+# Texts that live in CSS (the upload box, the toolbar labels) follow the language through CSS variables.
+_LANG_DATA = json.dumps({lang: {"drop": TEXT[lang]["drop"], "bigger": UI[lang]["bigger"], "smaller": UI[lang]["smaller"],
+                                "contrast": UI[lang]["contrast"]} for lang in UI}, ensure_ascii=False)
+APPLY_LANG = """
+const amtApply = (lang) => {
+  const all = %s, d = all[lang] || all.en, r = document.documentElement;
+  r.lang = lang; r.dir = (lang === 'ar' || lang === 'fa') ? 'rtl' : 'ltr';
+  for (const k of ['drop', 'bigger', 'smaller', 'contrast']) r.style.setProperty('--amt-' + k, JSON.stringify(d[k]));
+  for (const k of ['bigger', 'smaller', 'contrast']) {
+    const b = document.getElementById(k); if (b) { b.setAttribute('aria-label', d[k]); b.title = d[k]; }
+  }
+  document.querySelectorAll('#letter .upload-container').forEach(b => b.setAttribute('aria-label', d.drop));
+};
+""" % _LANG_DATA
+
 # Runs once when the page loads: remembers text size + contrast, makes status announcements audible.
 ON_LOAD_JS = """
-() => {
+() => {""" + APPLY_LANG + """
+  amtApply('en');
   const root = document.documentElement;
   const scale = parseFloat(localStorage.getItem('amt_scale') || '1');
   root.style.setProperty('--amt-scale', scale);
@@ -558,21 +737,17 @@ LISTEN_AGAIN_JS = """
   if (b) b.click();
 }
 """
-SET_LANG_JS = """
-(lang) => {
-  document.documentElement.lang = lang;
-  document.documentElement.dir = (lang === 'ar' || lang === 'fa') ? 'rtl' : 'ltr';
-  return lang;
-}
-"""
+SET_LANG_JS = "(lang) => {" + APPLY_LANG + " amtApply(lang); return lang; }"
 FOCUS_RESULT_JS = """
 () => { setTimeout(() => { const t = document.querySelector('#todo .todo') || document.querySelector('#status');
   if (t) { t.setAttribute('tabindex', '-1'); t.focus(); t.scrollIntoView({behavior: 'smooth', block: 'center'}); } }, 300); }
 """
 
 
-def _status(text: str) -> str:
-    return f'<p dir="auto">{text}</p>'
+def _status(text: str, kind: str = "") -> str:
+    """kind: "busy" (spinner), "done", "err" or "" (plain)."""
+    css = f' class="{kind}"' if kind else ""
+    return f'<p dir="auto"{css}>{text}</p>'
 
 
 def _copy_input(file_path: str) -> Path:
@@ -605,11 +780,11 @@ def explain_letter(pages, lang, read_aloud, slow):
     nothing = gr.update()
     # outputs: status, step3, todo, card, audio, listen_again, calendar, explanation, read_text, state, pages, more_btn
     if not pages:
-        yield (_status(t["no_file"]), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
+        yield (_status(t["no_file"], "err"), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
         return
 
     count = f" {t['pages_n'].format(n=len(pages))}" if len(pages) > 1 else ""
-    yield (_status(f"{t['s_read']}{count} <small>{t['first_time']}</small>"), hidden, "", "", None, hidden, hidden,
+    yield (_status(f"{t['s_read']}{count} <small>{t['first_time']}</small>", "busy"), hidden, "", "", None, hidden, hidden,
            "", "", None, nothing, hidden)
     try:
         a = analyze([Path(p) for p in pages])
@@ -622,33 +797,32 @@ def explain_letter(pages, lang, read_aloud, slow):
                 keep, message = [], t["bad"]
             audio = str(speak(message, lang, "bad_photo", slow=slow, play=False)) if read_aloud else None
             bad = f'<div class="todo urgent" role="alert" dir="auto"><div class="what">{message}</div></div>'
-            yield (_status(message), gr.update(visible=True), bad, "", audio, gr.update(visible=bool(audio)), hidden,
+            yield (_status(message, "err"), gr.update(visible=True), bad, "", audio, gr.update(visible=bool(audio)), hidden,
                    "", a.text, None, keep, gr.update(visible=bool(keep)))
             return
 
-        todo, card = todo_box(a, lang), summary_card(a, lang)
-        if a.cut:
-            card = f"⚠️ {t['cut']}\n\n{card}"
+        todo, card = todo_box(a, lang), facts_html(a, lang, warning=t["cut"] if a.cut else "")
         cal = calendar_file(a, lang)
-        yield (_status(t["s_explain"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), None, hidden,
+        yield (_status(t["s_explain"], "busy"), gr.update(visible=True), todo, card, None, hidden,
                gr.update(value=cal, visible=bool(cal)), "", a.text, None, nothing, hidden)
 
         explanation = explain(a.text, a.info, lang).split("\n\n(⚠")[0]
+        shown = f"### 💬 {TEXT[lang]['expl_h']}\n\n{explanation}"
         audio = None
         if read_aloud:
-            yield (_status(t["s_audio"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), None, hidden,
-                   gr.update(value=cal, visible=bool(cal)), gr.update(value=explanation, rtl=rtl), a.text, None,
+            yield (_status(t["s_audio"], "busy"), gr.update(visible=True), todo, card, None, hidden,
+                   gr.update(value=cal, visible=bool(cal)), gr.update(value=shown, rtl=rtl), a.text, None,
                    nothing, hidden)
             facts = SpokenFacts(sender=a.info.sender, deadline=a.deadline, amount=a.amount,
                                 receives=a.receives, reference=a.reference, amount_unclear=a.amount_unclear)
             audio = str(speak(build_script(facts, explanation, lang), lang, Path(pages[0]).stem, slow=slow, play=False))
 
         state = {"text": a.text, "info": a.info.model_dump(), "reference": a.reference}
-        yield (_status(t["s_done"] + count), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), audio,
+        yield (_status(t["s_done"] + count, "done"), gr.update(visible=True), todo, card, audio,
                gr.update(visible=bool(audio)), gr.update(value=cal, visible=bool(cal)),
-               gr.update(value=explanation, rtl=rtl), a.text, state, nothing, gr.update(visible=True))
+               gr.update(value=shown, rtl=rtl), a.text, state, nothing, gr.update(visible=True))
     except Exception as e:  # e.g. Ollama not running
-        yield (_status(_error(e, t)), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
+        yield (_status(_error(e, t), "err"), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
 
 
 def write_reply(state, intent, note, lang):
@@ -667,9 +841,25 @@ def write_reply(state, intent, note, lang):
     yield draft.german, f"<p><b>{t['s_reply_done']}</b></p><p>{draft.summary}</p>{notes}", str(out)
 
 
+def cloud_mode() -> bool:
+    """The always-online version: the app runs on a server (Hugging Face Space), the AI on the owner's PC."""
+    return os.environ.get("AMT_LOTSE_CLOUD") == "1"
+
+
 def _error(e: Exception, t: dict) -> str:
-    """Error text for the user: a model loop gets its own message, it is not an Ollama problem."""
-    return t["stuck"] if isinstance(e, ModelLoopError) else t["error"].format(e=e)
+    """Error text for the user: a model loop gets its own message, it is not an Ollama problem.
+    Online version: when the AI computer is off, say exactly that (not a technical error)."""
+    if isinstance(e, ModelLoopError):
+        return t["stuck"]
+    if cloud_mode() and not ai_online():
+        x = TEXT[next(lang for lang, texts in UI.items() if texts is t)]
+        return f"{x['ai_off_h']}. {x['ai_off']}"
+    return t["error"].format(e=e)
+
+
+def ai_status(lang):
+    """The banner of the online version; empty (hidden) when Amt-Lotse runs on this computer."""
+    return ai_status_html(lang, ai_online()) if cloud_mode() else ""
 
 
 def _transcribe(recording, lang):
@@ -737,20 +927,20 @@ def _escape(text: str) -> str:
 
 def switch_language(lang):
     """Translate every label on the page."""
-    t = UI[lang]
+    t, x = UI[lang], TEXT[lang]
     rtl = lang in RTL_LANGUAGES
     return (
-        f"# {t['title']}\n{t['subtitle']}",
-        f"## {t['step1']}", f"## {t['step2']}", t["hint2"],
-        gr.update(value=t["camera"]), gr.update(label=t["file"]), gr.update(label=t["examples"]), gr.update(value=t["go"]),
-        f"## {t['step3']}", gr.update(value=t["listen_again"]), gr.update(label=t["calendar"]),
+        hero_html(lang, cloud_mode()), info_html(lang, cloud_mode()), ai_status(lang), f"**{t['step1']}**", f"## {t['step2']}", t["hint2"],
+        gr.update(value=t["camera"]), gr.update(label=x["or_file"]), t["examples"],
+        *[gr.update(value=label) for label in example_labels(lang)],
+        gr.update(value=x["again"]),
+        f"## {t['step3']}", gr.update(value="🔊 " + t["listen_again"]), gr.update(label="📅 " + t["calendar"]),
         gr.update(label=t["read"]), gr.update(label=t["reply"]),
         gr.update(label=t["intent"], choices=[(label, key) for key, label in t["intents"].items()]),
         gr.update(label=t["note"], placeholder=t["note_ph"], rtl=rtl),
         gr.update(value=t["reply_btn"]), gr.update(label=t["reply_text"]), gr.update(label=t["download"]),
-        gr.update(label=t["settings"]), gr.update(label=t["read_aloud"]), gr.update(label=t["slow"]),
-        gr.update(value="A+ " + t["bigger"]), gr.update(value="A− " + t["smaller"]), gr.update(value="◐ " + t["contrast"]),
-        f"### {t['ask_h']}", t["ask_hint"], gr.update(label=t["ask_mic"]),
+        gr.update(label="⚙️ " + t["settings"]), gr.update(label=t["read_aloud"]), gr.update(label=t["slow"]),
+        f"### 💬 {t['ask_h']}", t["ask_hint"], gr.update(label=t["ask_mic"]),
         gr.update(label=t["ask_text"], placeholder=t["ask_ph"], rtl=rtl), gr.update(value=t["ask_btn"]),
         gr.update(label=t["note_mic"]), gr.update(value=t["more"]),
         t["footer"], lang,
@@ -759,57 +949,74 @@ def switch_language(lang):
 
 # ---------------------------------------------------------------- layout
 def build_ui() -> gr.Blocks:
-    t = UI["en"]
+    t, x = UI["en"], TEXT["en"]
     with gr.Blocks(title="Amt-Lotse", analytics_enabled=False) as ui:
         saved_lang = gr.BrowserState("en", storage_key="amt_lotse_lang")
         state = gr.State()
-
-        with gr.Row(elem_id="toolbar"):
-            bigger = gr.Button("A+ " + t["bigger"], size="sm", scale=0)
-            smaller = gr.Button("A− " + t["smaller"], size="sm", scale=0)
-            contrast = gr.Button("◐ " + t["contrast"], size="sm", scale=0)
-
-        header = gr.Markdown(f"# {t['title']}\n{t['subtitle']}")
-
-        step1 = gr.Markdown(f"## {t['step1']}")
-        lang = gr.Radio(LANG_CHOICES, value="en", show_label=False, elem_id="lang")
-
-        step2 = gr.Markdown(f"## {t['step2']}")
-        hint2 = gr.Markdown(t["hint2"])
-        camera = gr.Button(t["camera"], variant="primary", size="lg", elem_id="camera")
-        file_in = gr.File(label=t["file"], file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"],
-                          type="filepath", file_count="multiple", elem_id="letter")
-        more = gr.File(file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"], type="filepath",
-                       file_count="multiple", elem_id="more", show_label=False)
         pages = gr.State([])
-        with gr.Accordion(t["examples"], open=False) as examples_box:
-            gr.Examples([[[str(p)]] for p in EXAMPLES if p.exists()], inputs=[file_in], label="")
-        go = gr.Button(t["go"], variant="primary", size="lg", elem_id="go")
-        status = gr.Markdown(elem_id="status")
 
-        with gr.Column(visible=False) as result:
+        # ----- top bar: logo, text size, contrast (their labels follow the language through CSS)
+        with gr.Row(elem_id="topbar"):
+            gr.HTML(brand_html())
+            with gr.Row(elem_id="toolbar"):
+                bigger = gr.Button("A+", size="sm", scale=0, elem_id="bigger")
+                smaller = gr.Button("A−", size="sm", scale=0, elem_id="smaller")
+                contrast = gr.Button("🌓", size="sm", scale=0, elem_id="contrast")
+
+        # ----- step 1: the language first, so everything below is already in it
+        with gr.Column(elem_id="langs"):
+            step1 = gr.Markdown(f"**{t['step1']}**")
+            lang = gr.Radio(LANG_CHOICES, value="en", show_label=False, elem_id="lang")
+
+        # ----- landing: what it is, in one look
+        with gr.Row(elem_id="hero-row"):
+            hero = gr.HTML(hero_html("en", cloud_mode()), scale=6)
+            gr.HTML(art_html(), scale=5)
+
+        # ----- step 2: the tool, one main button
+        with gr.Column(elem_id="tool"):
+            # online version: is the AI computer on? (checked on load, then every 30 seconds)
+            ai_banner = gr.HTML(elem_id="ai-status")
+            step2 = gr.Markdown(f"## {t['step2']}")
+            hint2 = gr.Markdown(t["hint2"])
+            camera = gr.Button(t["camera"], variant="primary", size="lg", elem_id="camera")
+            file_in = gr.File(label=x["or_file"], file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"],
+                              type="filepath", file_count="multiple", elem_id="letter")
+            more = gr.File(file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"], type="filepath",
+                           file_count="multiple", elem_id="more", show_label=False)
+            examples_h = gr.Markdown(t["examples"], elem_id="examples-h")
+            with gr.Row(elem_id="examples"):
+                example_btns = [gr.Button(label, size="md", visible=path.exists(), elem_classes="example")
+                                for label, path in zip(example_labels("en"), EXAMPLES, strict=True)]
+            status = gr.Markdown(elem_id="status")
+
+        # ----- step 3: the result
+        with gr.Column(visible=False, elem_id="result") as result:
             step3 = gr.Markdown(f"## {t['step3']}")
             todo = gr.HTML(elem_id="todo")
-            more_btn = gr.Button(t["more"], size="lg", visible=False, elem_id="more-btn")
-            with gr.Row():
-                listen_again = gr.Button(t["listen_again"], size="lg", visible=False, elem_id="listen")
-                calendar = gr.DownloadButton(t["calendar"], size="lg", visible=False)
+            with gr.Row(elem_id="actions"):
+                listen_again = gr.Button("🔊 " + t["listen_again"], size="lg", visible=False, elem_id="listen")
+                calendar = gr.DownloadButton("📅 " + t["calendar"], size="lg", visible=False)
+                more_btn = gr.Button(t["more"], size="lg", visible=False, elem_id="more-btn")
+                # the same letter again, e.g. after choosing another language: no new upload needed
+                go = gr.Button(x["again"], size="lg", elem_id="go")
             # no "share" button: these are private letters
             audio = gr.Audio(type="filepath", autoplay=True, show_label=False, elem_id="audio", buttons=["download"])
-            card = gr.Markdown(elem_id="card")
+            card = gr.HTML(elem_id="card")
             explanation = gr.Markdown(elem_id="explanation")
 
-            ask_h = gr.Markdown(f"### {t['ask_h']}")
-            ask_hint = gr.Markdown(t["ask_hint"])
-            ask_mic = gr.Audio(sources=["microphone"], type="filepath", label=t["ask_mic"], elem_id="ask-mic",
-                               buttons=[])  # private: no share or download of the recording
-            with gr.Row(equal_height=True):
-                ask_text = gr.Textbox(label=t["ask_text"], placeholder=t["ask_ph"], scale=4)
-                ask_btn = gr.Button(t["ask_btn"], variant="primary", size="lg", scale=1)
-            ask_status = gr.Markdown(elem_id="ask-status")
-            ask_answer = gr.HTML(elem_id="answer")
-            ask_audio = gr.Audio(type="filepath", autoplay=True, show_label=False, elem_id="answer-audio",
-                                 buttons=["download"])
+            with gr.Column(elem_id="ask-card"):
+                ask_h = gr.Markdown(f"### 💬 {t['ask_h']}")
+                ask_hint = gr.Markdown(t["ask_hint"])
+                ask_mic = gr.Audio(sources=["microphone"], type="filepath", label=t["ask_mic"], elem_id="ask-mic",
+                                   buttons=[])  # private: no share or download of the recording
+                with gr.Row(equal_height=True):
+                    ask_text = gr.Textbox(label=t["ask_text"], placeholder=t["ask_ph"], scale=4)
+                    ask_btn = gr.Button(t["ask_btn"], variant="primary", size="lg", scale=1)
+                ask_status = gr.Markdown(elem_id="ask-status")
+                ask_answer = gr.HTML(elem_id="answer")
+                ask_audio = gr.Audio(type="filepath", autoplay=True, show_label=False, elem_id="answer-audio",
+                                     buttons=["download"])
             with gr.Accordion(t["read"], open=False) as read_box:
                 read_text = gr.Textbox(lines=12, show_label=False, buttons=["copy"])
             with gr.Accordion(t["reply"], open=False) as reply_box:
@@ -824,16 +1031,19 @@ def build_ui() -> gr.Blocks:
                 reply_text = gr.Textbox(label=t["reply_text"], lines=16, buttons=["copy"])
                 reply_file = gr.File(label=t["download"])
 
-        with gr.Accordion(t["settings"], open=False) as settings_box:
+        # ----- landing: how it works, why it can be trusted
+        info = gr.HTML(info_html("en", cloud_mode()))
+
+        with gr.Accordion("⚙️ " + t["settings"], open=False) as settings_box:
             read_aloud = gr.Checkbox(value=True, label=t["read_aloud"])
             slow = gr.Checkbox(value=True, label=t["slow"])
 
-        footer = gr.Markdown(t["footer"])
+        footer = gr.Markdown(t["footer"], elem_id="footer")
 
         # ----- events
-        translated = [header, step1, step2, hint2, camera, file_in, examples_box, go, step3, listen_again, calendar,
-                      read_box, reply_box, intent, note, reply_btn, reply_text, reply_file, settings_box,
-                      read_aloud, slow, bigger, smaller, contrast,
+        translated = [hero, info, ai_banner, step1, step2, hint2, camera, file_in, examples_h, *example_btns, go,
+                      step3, listen_again, calendar, read_box, reply_box, intent, note, reply_btn, reply_text,
+                      reply_file, settings_box, read_aloud, slow,
                       ask_h, ask_hint, ask_mic, ask_text, ask_btn, note_mic, more_btn, footer, saved_lang]
         explain_outputs = [status, result, todo, card, audio, listen_again, calendar, explanation, read_text, state,
                            pages, more_btn]
@@ -841,14 +1051,22 @@ def build_ui() -> gr.Blocks:
         ui.load(None, js=ON_LOAD_JS)
         ui.load(lambda saved: saved or "en", inputs=saved_lang, outputs=lang)
         lang.change(switch_language, inputs=lang, outputs=translated, js=SET_LANG_JS)
+        if cloud_mode():
+            ui.load(ai_status, lang, ai_banner, show_progress="hidden")
+            gr.Timer(30).tick(ai_status, lang, ai_banner, show_progress="hidden")
 
         run = dict(fn=explain_letter, inputs=[pages, lang, read_aloud, slow], outputs=explain_outputs,
                    show_progress="hidden")
         # upload = a new letter, start automatically
         file_in.upload(new_letter, [file_in, pages], [pages, file_in], show_progress="hidden") \
             .then(**run).then(None, js=FOCUS_RESULT_JS)
+        # "Explain again": the same pages, e.g. in the language chosen afterwards
         go.click(new_letter, [file_in, pages], [pages, file_in], show_progress="hidden") \
             .then(**run).then(None, js=FOCUS_RESULT_JS)
+        # an example letter: one tap, and it is explained
+        for button, path in zip(example_btns, EXAMPLES, strict=True):
+            button.click(lambda p=str(path): [p], None, pages, show_progress="hidden") \
+                .then(**run).then(None, js=FOCUS_RESULT_JS)
         # "Add the next page": one more photo, then the whole letter is read again
         more_btn.click(None, js=MORE_JS)
         more.upload(add_pages, [more, pages], [pages, more], show_progress="hidden") \
@@ -900,6 +1118,12 @@ def print_qr(url: str) -> None:
         pass
 
 
+CLOUD_NOTE = """
+  Amt-Lotse online version
+  • This server shows the app (and runs speech-to-text and read-aloud). The AI runs on your PC: {host}
+  • AI right now: {online}. When the PC is off, the page still works and says that the AI server is off.
+  • Letters pass through this server (encrypted) on their way to your PC; they are not stored here.
+"""
 SHARE_WARNING = """
   ⚠  PUBLIC LINK – please read
   • Anyone who has the link AND the password can use Amt-Lotse on this computer.
@@ -942,6 +1166,9 @@ def main() -> None:
                         help="phone app over Tailscale: HTTPS, installable, also away from home (asks for a password)")
     parser.add_argument("--cert", help="HTTPS certificate for --lan (e.g. made with mkcert), so the phone can install the app")
     parser.add_argument("--key", help="private key that belongs to --cert")
+    parser.add_argument("--cloud", action="store_true",
+                        help="always-online version (Hugging Face Space): this server shows the app, the AI runs on "
+                             "your PC (OLLAMA_HOST, reached through Tailscale); needs AMT_LOTSE_PASSWORD")
     parser.add_argument("--share", action="store_true",
                         help="temporary public link via gradio.live, e.g. for a demo (asks for a password; "
                              "letters then pass through Gradio's servers)")
@@ -959,6 +1186,21 @@ def main() -> None:
 
     if args.share and (args.lan or args.tailscale):
         parser.error("--share is its own mode; use it without --lan/--tailscale")
+
+    if args.cloud:
+        # Online version: anyone can open the page, so the password is required and must be a real one.
+        # The letters pass through this server on their way to the AI on your PC (see CLOUD_NOTE).
+        if args.share or args.lan or args.tailscale:
+            parser.error("--cloud is its own mode; use it without --share/--lan/--tailscale")
+        password = os.environ.get("AMT_LOTSE_PASSWORD", "")
+        if len(password) < 10:
+            parser.error("--cloud needs a password of at least 10 characters in AMT_LOTSE_PASSWORD (a Space secret)")
+        os.environ["AMT_LOTSE_CLOUD"] = "1"
+        print(CLOUD_NOTE.format(host=os.environ.get("OLLAMA_HOST", "127.0.0.1:11434"),
+                                online="reachable" if ai_online() else "NOT reachable (PC off?)"))
+        build_ui().launch(server_name="0.0.0.0", auth=("amt", password),
+                          auth_message="Amt-Lotse – please enter your password.", **common)
+        return
 
     if not (args.lan or args.tailscale or args.share):
         # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
