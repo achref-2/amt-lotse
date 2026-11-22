@@ -27,6 +27,13 @@ All screenshots use fictional test letters from `data/`.
 
 ![Arabic result for a tax assessment: deadline, 312,00 € to pay, reference number, audio player and Arabic explanation](docs/result_ar.png)
 
+**4. Russian and Turkish: an appointment at the Jobcenter, and a refund from the health insurance**
+
+<p>
+<img src="docs/result_ru.png" width="49%" alt="Russian result for a Jobcenter appointment: date 8 December 2026, nothing to pay, reference number and Russian explanation">
+<img src="docs/result_tr.png" width="49%" alt="Turkish result for a health insurance refund: 64,30 euro to receive, deadline 15 December 2026 and Turkish explanation">
+</p>
+
 **Progress is shown step by step, in the chosen language, so nobody thinks "nothing is happening"**
 
 ![Arabic status message while the explanation is written, below the example letters](docs/progress_ar.png)

@@ -569,7 +569,7 @@ body, gradio-app { background: radial-gradient(1200px 520px at 85% -10%, #dfe9ff
 .facts .label { font-size: calc(var(--amt-base) * .78) !important; font-weight: 700; color: var(--amt-muted); text-transform: uppercase; letter-spacing: .04em; }
 .facts .value { font-weight: 650; color: var(--amt-ink); overflow-wrap: anywhere; }
 .facts .value small { display: block; font-weight: 500; color: var(--amt-muted); font-size: calc(var(--amt-base) * .8); }
-.facts .money { font-size: calc(var(--amt-base) * 1.35); font-weight: 800; }
+.facts .money { font-size: calc(var(--amt-base) * 1.35); font-weight: 800; color: inherit; }   /* else Gradio colours the span: unreadable on the light tiles in dark mode */
 .facts .fact.hot { background: #fff1f1; border-color: #f1b3b3; } .facts .fact.hot .value, .facts .fact.hot .value small { color: #6b0000; }
 .facts .fact.good { background: #ebf8f0; border-color: #a9dcbc; } .facts .fact.good .value { color: #0b5d2e; }
 .facts .ref { font-family: ui-monospace, Consolas, monospace; letter-spacing: .08em; }
