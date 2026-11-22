@@ -4,6 +4,7 @@ Start:
     uv run amt-lotse-ui          # only this computer: http://127.0.0.1:7860
     uv run amt-lotse-ui --lan    # also your phone on the same Wi-Fi (password protected)
     uv run amt-lotse-ui --tailscale   # phone app with HTTPS, also away from home (see README)
+    uv run amt-lotse-ui --share       # temporary public link, e.g. for a demo (password protected, see warning)
 
 Design rules
 - Three steps only: 1 language, 2 letter, 3 result. Everything else is folded away.
@@ -879,15 +880,11 @@ def lan_ip() -> str:
         return s.getsockname()[0]
 
 
-def print_phone_link(url: str, password: str) -> None:
-    """The address as text and as a QR code: point the phone camera at the screen, no typing."""
+def print_qr(url: str) -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8")  # Windows terminals need this for the QR blocks
     except (AttributeError, ValueError):
         pass
-    print("\n" + "=" * 60)
-    print("  On your phone, scan this code with the camera, or type the address:")
-    print(f"     {url}")
     try:
         import io
 
@@ -899,8 +896,26 @@ def print_phone_link(url: str, password: str) -> None:
         out = io.StringIO()
         qr.print_ascii(out=out, invert=True)
         print(out.getvalue())
-    except Exception:  # no QR in this terminal: the address above is enough
+    except Exception:  # no QR in this terminal: the address is printed as text too
         pass
+
+
+SHARE_WARNING = """
+  ⚠  PUBLIC LINK – please read
+  • Anyone who has the link AND the password can use Amt-Lotse on this computer.
+  • Letters (photos, texts) then travel through Gradio's share servers (gradio.live) to this computer.
+    They are not stored there, but they leave this computer. Use only made-up test letters,
+    never real ones, while the public link is on.
+  • The link works until you stop the app (Ctrl + C), at most about 1 week.
+"""
+
+
+def print_phone_link(url: str, password: str) -> None:
+    """The address as text and as a QR code: point the phone camera at the screen, no typing."""
+    print("\n" + "=" * 60)
+    print("  On your phone, scan this code with the camera, or type the address:")
+    print(f"     {url}")
+    print_qr(url)
     print("  User:      amt")
     print(f"  Password:  {password}")
     print("\n  Install it as an app: browser menu > 'Add to Home screen' / 'Install app'.")
@@ -927,6 +942,9 @@ def main() -> None:
                         help="phone app over Tailscale: HTTPS, installable, also away from home (asks for a password)")
     parser.add_argument("--cert", help="HTTPS certificate for --lan (e.g. made with mkcert), so the phone can install the app")
     parser.add_argument("--key", help="private key that belongs to --cert")
+    parser.add_argument("--share", action="store_true",
+                        help="temporary public link via gradio.live, e.g. for a demo (asks for a password; "
+                             "letters then pass through Gradio's servers)")
     parser.add_argument("--port", type=int, default=7860)
     parser.add_argument("--host", default="127.0.0.1",
                         help="network interface; Docker uses 0.0.0.0 (the port is still published only to this computer)")
@@ -939,7 +957,10 @@ def main() -> None:
     common = dict(server_port=args.port, css=CSS, theme=theme, head=HEAD, favicon_path=str(ICON), pwa=True,
                   footer_links=[])  # no "Use via API" / "Built with Gradio": fewer distractions
 
-    if not (args.lan or args.tailscale):
+    if args.share and (args.lan or args.tailscale):
+        parser.error("--share is its own mode; use it without --lan/--tailscale")
+
+    if not (args.lan or args.tailscale or args.share):
         # 127.0.0.1 = only this computer can open it. Letters never leave the machine.
         build_ui().launch(server_name=args.host, inbrowser=args.host == "127.0.0.1", **common)
         return
@@ -949,6 +970,28 @@ def main() -> None:
     password = os.environ.get("AMT_LOTSE_PASSWORD") or secrets.token_urlsafe(6)
     auth = dict(auth=("amt", password), auth_message="Amt-Lotse – please enter the password shown on the computer.",
                 inbrowser=False)
+
+    if args.share:
+        # Public link: Gradio opens a tunnel from its share server to this computer. Amt-Lotse itself stays
+        # on 127.0.0.1; the password is what keeps strangers out, so it is never optional here.
+        print(SHARE_WARNING)
+        print("  Creating the public link (the first time Gradio downloads a small helper program) ...\n")
+        ui = build_ui()
+        _app, _local, share_url = ui.launch(server_name="127.0.0.1", share=True, prevent_thread_lock=True,
+                                             **auth, **common)
+        if not share_url:
+            print("  The public link could not be created (no internet, or a firewall / antivirus blocks Gradio's")
+            print("  helper program). Amt-Lotse still runs on this computer: http://127.0.0.1:" + str(args.port))
+        else:
+            print("=" * 60)
+            print(f"  Public link:  {share_url}")
+            print_qr(share_url)
+            print("  User:      amt")
+            print(f"  Password:  {password}")
+            print("  Stop the public link: Ctrl + C")
+            print("=" * 60 + "\n")
+        ui.block_thread()      # keeps running; Ctrl + C closes the app and the public link
+        return
 
     if args.tailscale:
         # Tailscale gives this computer a private HTTPS address that only your own devices can open,

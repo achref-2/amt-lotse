@@ -231,3 +231,6 @@ audio/
 replies/
 # Text-eval reports
 eval_results/
+
+# Gradio creates this when a public link (share) was tried
+.gradio/

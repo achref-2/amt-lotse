@@ -120,6 +120,19 @@ can be spoken too.
 - Browsers only allow the microphone on `localhost` or HTTPS, so on a phone use `--tailscale` or
   `--cert/--key` (plain `--lan` can still type questions).
 
+## Public link (for a demo)
+```bash
+uv run amt-lotse-ui --share
+```
+Gradio creates a temporary public address (`https://….gradio.live`) that works from anywhere, shown as text and as
+a QR code with a fresh password. Meant for showing Amt-Lotse to someone, e.g. in an interview:
+
+- **Always password protected** – the link alone would let anyone use your computer's models.
+- **Letters leave your computer:** they travel through Gradio's share servers. Use only made-up test letters
+  while the link is on. For your own letters on your phone, use `--tailscale` instead (stays private).
+- The link ends when you press Ctrl + C (at most about a week). The first start downloads Gradio's small tunnel
+  program (`frpc`); some antivirus programs block it — then allow it, or use `--tailscale`.
+
 ## Phone app
 Amt-Lotse can be installed on a phone like an app: its own icon on the home screen, full screen, and a big
 **📷 Take a photo of the letter** button that opens the back camera directly. The models still run only on
@@ -287,7 +300,7 @@ What the extraction eval taught us:
 
 ## Tests
 ```bash
-uv run pytest            # 116 tests, about 3 seconds, no models needed
+uv run pytest            # 117 tests, about 3 seconds, no models needed
 uv run ruff check src tests
 ```
 The tests never call a model. Where the app asks a model, the test plays the model's answer — often a
@@ -323,7 +336,7 @@ Each safety rule was switched off once to make sure a test fails without it.
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
-- [x] Tests (116, no models needed) and CI on Linux + Windows, Docker build check
+- [x] Tests (117, no models needed) and CI on Linux + Windows, Docker build check
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 7 tools (local-first, folder allow-list)
