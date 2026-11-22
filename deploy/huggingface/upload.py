@@ -1,6 +1,6 @@
 """Puts the online version together and uploads it to the Hugging Face Space (run by .github/workflows/space.yml).
 
-Only what the app needs goes online: the code, the lock file and the fictional example letters.
+Only what the app needs goes online: the code and the fictional example letters.
 The upload goes through Hugging Face's API, which stores images and PDFs the way the Hub requires.
 """
 
@@ -18,7 +18,7 @@ def build(target: Path) -> Path:
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
-    for name in ["pyproject.toml", "uv.lock", "LICENSE"]:
+    for name in ["LICENSE"]:
         shutil.copy(ROOT / name, target / name)
     shutil.copytree(ROOT / "src", target / "src", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     for example in EXAMPLES:
@@ -28,7 +28,7 @@ def build(target: Path) -> Path:
             shutil.copytree(source, dest, ignore=shutil.ignore_patterns("*.ocr.txt"))
         else:
             shutil.copy(source, dest)
-    for name in ["Dockerfile", "start.sh", "README.md"]:      # README.md here is the Space's own page
+    for name in ["app.py", "requirements.txt", "README.md"]:      # README.md here is the Space's own page
         shutil.copy(HERE / name, target / name)
     return target
 

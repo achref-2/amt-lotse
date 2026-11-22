@@ -3,10 +3,12 @@ title: Amt-Lotse
 emoji: 📬
 colorFrom: blue
 colorTo: green
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 6.32.0
+python_version: "3.10"
+app_file: app.py
 pinned: false
-short_description: Understand German official letters – in your language, read aloud
+short_description: German official letters explained in your language
 ---
 
 # Amt-Lotse – online version

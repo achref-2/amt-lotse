@@ -191,11 +191,11 @@ password protected, and the Space can reach nothing on your PC except the AI.
    (`tskey-client-…`). It does not expire, unlike normal auth keys (max. 90 days).
 
 **On Hugging Face (once)**
-1. *New Space* → SDK **Docker** → *Blank*, name `amt-lotse`.
+1. *New Space* → SDK **Gradio** → *Blank*, hardware *CPU Basic* (free), name `amt-lotse`. (The Docker SDK is a paid option on some accounts; the Gradio Space starts Tailscale itself from `deploy/huggingface/app.py`.)
 2. Space *Settings → Variables and secrets*:
    - secret `AMT_LOTSE_PASSWORD`: your login password (at least 10 characters; user name is `amt`)
    - secret `TS_AUTHKEY`: the `tskey-client-…` secret
-   - variable `OLLAMA_HOST`: `http://<your-pc>.<your-tailnet>.ts.net:11434`
+   - variable `OLLAMA_HOST`: `http://<tailscale-ip-of-your-pc>:11434` (`tailscale ip -4` shows it)
 3. Your profile → *Access Tokens* → a **write** token for this Space.
 
 **On GitHub (once)**: repository *Settings → Secrets and variables → Actions*: secret `HF_TOKEN` (the token),
