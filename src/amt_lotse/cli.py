@@ -5,6 +5,7 @@ Usage:
     uv run amt-lotse data/eval/mahnung_01.txt --lang fr
     uv run amt-lotse data/eval/mahnung_01.txt --lang ar --speak     (read aloud)
     uv run amt-lotse photo_of_letter.jpg --lang ar --speak          (photo / scan / PDF)
+    uv run amt-lotse seite1.jpg seite2.jpg anlage.pdf                (several pages = one letter, in this order)
     uv run amt-lotse data/eval/mahnung_01.txt --reply installments   (draft a German reply)
     uv run amt-lotse data/eval/mahnung_01.txt --ask "What if I don't pay?"   (question, answered from the letter)
     uv run amt-lotse data/eval/mahnung_01.txt --ask-voice question.wav       (spoken question)
@@ -23,6 +24,7 @@ from amt_lotse.extract import (
     client,
     extract_letter_info,
     normalize_reference,
+    options_for,
     parse_german_amount,
     parse_german_date,
 )
@@ -90,7 +92,7 @@ def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
                 ),
             },
         ],
-        options={"temperature": 0},
+        options=options_for(letter),
     )
     return response["message"]["content"].strip()
 
@@ -123,7 +125,8 @@ def explain(letter: str, info: LetterInfo, lang_code: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="amt-lotse", description="Explain a German official letter.")
-    parser.add_argument("letter", type=Path, help="the letter: .txt, .pdf, or a photo (.jpg/.png)")
+    parser.add_argument("letter", type=Path, nargs="+",
+                        help="the letter: .txt, .pdf or a photo (.jpg/.png); several files = pages of one letter")
     parser.add_argument("--lang", choices=LANGUAGES, default="en", help="language of the explanation")
     parser.add_argument("--speak", action="store_true",
                         help="read the summary aloud (for blind and older people) and save it as .wav")
@@ -139,30 +142,39 @@ def main() -> None:
                         help="the same, as a recording (.wav/.mp3/.m4a); turned into text offline")
     args = parser.parse_args()
 
-    if not args.letter.exists():
-        sys.exit(f"File not found: {args.letter}")
-    from amt_lotse.ocr import load_letter
+    for f in args.letter:
+        if not f.exists():
+            sys.exit(f"File not found: {f}")
+    first = args.letter[0]          # names of saved files (audio, reply, OCR text) come from the first page
+    from amt_lotse.ocr import load_letters
 
-    loaded = load_letter(args.letter)
+    loaded = load_letters(args.letter)
     letter = loaded.text
 
     if loaded.ocr_pages:
         # Save what the vision model read, so a helper can compare it with the paper letter.
-        ocr_path = args.letter.with_suffix(".ocr.txt")
+        ocr_path = first.with_suffix(".ocr.txt")
         ocr_path.write_text(letter, encoding="utf-8")
         print(f"Text read from the {'scan' if loaded.source != 'ocr' else 'photo'}: {ocr_path}\n")
 
     if loaded.looks_bad:
-        reason = "the text was cut off" if loaded.truncated else "too little text was found"
+        if loaded.bad_pages:
+            names = ", ".join(args.letter[i - 1].name for i in loaded.bad_pages if i <= len(args.letter))
+            reason = f"unreadable: {names}"
+        else:
+            reason = "the text was cut off" if loaded.truncated else "too little text was found"
         print(f"⚠ Could not read the whole letter ({reason}). "
               "Take the photo again: good light, whole page, phone straight above it.")
         if args.speak:
             from amt_lotse.speak import TEXT, speak
-            speak(TEXT[args.lang]["bad_photo"], args.lang, args.letter.stem,
+            speak(TEXT[args.lang]["bad_photo"], args.lang, first.stem,
                   slow=not args.normal_speed, play=not args.no_play)
         sys.exit(1)
 
-    print(f"Reading {args.letter.name} with {MODEL} (explanation: {EXPLAIN_MODEL}) ...\n", flush=True)
+    pages = f" ({loaded.pages} pages)" if loaded.pages > 1 else ""
+    print(f"Reading {first.name}{pages} with {MODEL} (explanation: {EXPLAIN_MODEL}) ...\n", flush=True)
+    if loaded.cut:
+        print("⚠ This letter is very long: only the first pages were read.\n")
     info = extract_letter_info(letter)
 
     deadline = safe(parse_german_date, info.deadline_text) if info.recipient_has_deadline else None
@@ -215,7 +227,7 @@ def main() -> None:
         draft = build_reply(letter, info, reference, args.reply, LANGUAGES[args.lang], args.note)
         reply_dir = Path(__file__).resolve().parents[2] / "replies"
         reply_dir.mkdir(exist_ok=True)
-        reply_path = reply_dir / f"{args.letter.stem}_{args.reply}.txt"
+        reply_path = reply_dir / f"{first.stem}_{args.reply}.txt"
         reply_path.write_text(draft.german, encoding="utf-8")
 
         print("\n" + "-" * 60)
@@ -243,7 +255,7 @@ def main() -> None:
         )
         script = build_script(facts, explanation.split("\n\n(⚠")[0], args.lang)
         print("\nCreating audio ...", flush=True)
-        path = speak(script, args.lang, args.letter.stem,
+        path = speak(script, args.lang, first.stem,
                      slow=not args.normal_speed, play=not args.no_play)
         print(f"Audio saved: {path}")
 

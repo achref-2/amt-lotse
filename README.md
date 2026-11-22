@@ -1,4 +1,7 @@
 # Amt-Lotse
+[![CI](https://github.com/achref-2/amt-lotse/actions/workflows/ci.yml/badge.svg)](https://github.com/achref-2/amt-lotse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **An AI assistant that explains German official letters — from a photo, in your language, out loud, and privately on your own machine.**
 
 Letters from the Jobcenter, the Krankenkasse, the Finanzamt or the Ausländerbehörde are hard to understand, even with good German. For many people they are much harder:
@@ -60,6 +63,13 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
 
 ## Features
 - **Any input** – `.txt`, PDF (digital text is read directly, scanned pages via OCR), photos (`.jpg`, `.png`)
+- **Multi-page letters and attachments** – several photos or files are read as one letter, in order
+  (e.g. the letter plus its *Rechtsbehelfsbelehrung* or payment form). In the web UI: pick all pages at once,
+  or **📷 Add the next page** after the first. An unreadable page is taken out and named, so only that one
+  has to be photographed again.
+- **Context sized to the letter** – Ollama's default context is ~4000 tokens and it silently drops the
+  *beginning* of longer prompts, which is where the deadline and amount are. Every model call asks for a
+  context that fits the letter (up to 16k tokens); letters beyond ~15 pages are cut at the end instead, with a warning.
 - **Local OCR** with a vision model (Qwen2.5-VL 3B); unreadable or cut-off photos are detected → "take the photo again"
 - **Structured extraction** – sender, deadline, amount, reference number, required action (JSON schema output)
 - **Plain-language explanation** in English, French, Arabic or simple German (`--lang en|fr|ar|de`)
@@ -156,6 +166,7 @@ uv sync
 
 uv run amt-lotse data/eval/mahnung_01.txt                          # English
 uv run amt-lotse data/photos/jobcenter_01_photo.jpg --lang ar --speak  # photo, Arabic, read aloud
+uv run amt-lotse seite1.jpg seite2.jpg anlage.pdf      # several pages / attachments = one letter
 uv run amt-lotse data/eval/mahnung_01.txt --reply installments     # reply draft
 ```
 
@@ -271,6 +282,24 @@ What the extraction eval taught us:
 
 `data/photos/` contains a scan, a tilted phone photo, a digital PDF and a scanned PDF made from the test letters. All test letters are fictional and marked as test data.
 
+## Tests
+```bash
+uv run pytest            # 72 tests, about 3 seconds, no models needed
+uv run ruff check src tests
+```
+The tests never call a model. Where the app asks a model, the test plays the model's answer — often a
+**wrong** one — and checks that the rules around the model catch it:
+
+- **who pays:** the model says "no payment" for a *Mahnung*, calls a *Guthaben* a bill, or takes a price per kWh as an amount due
+- **reply drafts:** the model invents "drei Raten zu je 18,71 €" twice → the code turns them into `[Anzahl]` and `[Betrag]`
+- **questions:** answers with a date or amount that is not in the letter are retried, then replaced by "the letter does not say this"
+- **pages:** order, an unreadable page is named, a 15+ page letter keeps page 1
+- **security:** the MCP server refuses `../` paths, absolute paths and links that point outside the allowed folders
+- **translations:** every language has every text, and every language switch fills every label of the page
+
+Each safety rule was switched off once to make sure a test fails without it.
+[GitHub Actions](.github/workflows/ci.yml) runs lint and tests on Linux and Windows and builds the Docker image on every push.
+
 ## Limitations
 - Explanation and reply texts are checked by rules, not for meaning: the 7B model sometimes mixes things up (e.g. the appeal period vs. a consequence of not paying). Dates and amounts in the summary card and audio are checked by code — the free text only partly.
 - The German in reply drafts is understandable but not always grammatically perfect. Read it before sending, or have someone check it.
@@ -289,7 +318,9 @@ What the extraction eval taught us:
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
+- [x] Tests (72, no models needed) and CI on Linux + Windows, Docker build check
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 7 tools (local-first, folder allow-list)
+- [x] Multi-page letters and attachments (several photos/files as one letter, add pages one by one)
 - [x] Voice input: spoken questions about the letter, answered only from the letter; spoken reply notes

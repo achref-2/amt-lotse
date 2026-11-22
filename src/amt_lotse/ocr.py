@@ -3,6 +3,7 @@
 - .txt          -> read directly
 - .pdf          -> use the PDF's own text; only scanned pages go through OCR
 - .jpg/.png/... -> OCR with a local vision model (Qwen2.5-VL via Ollama)
+- several files  -> one letter: page photos, a letter plus its attachments (Anlagen), in the given order
 
 Everything stays on this machine.
 """
@@ -21,6 +22,7 @@ MAX_SIDE = 1600        # px; ~2500 image tokens, fits the context with room for 
 NUM_CTX = 8192         # context window for OCR (image tokens + the transcribed text)
 MIN_CHARS = 150        # less text than this = probably a bad photo
 PDF_TEXT_MIN = 50      # a PDF page with less text than this is treated as a scan
+MAX_CHARS = 40_000     # ~15 pages; beyond this the end is cut (better than the models losing page 1)
 
 OCR_PROMPT = (
     "This is a photo or scan of a German letter. "
@@ -38,9 +40,14 @@ class LetterText:
     source: str            # "text", "pdf", "pdf+ocr" or "ocr"
     ocr_pages: int = 0
     truncated: bool = False
+    pages: int = 1
+    bad_pages: list[int] | None = None   # 1-based numbers of the FILES (photos/scans) that could not be read
+    cut: bool = False                    # very long letter: the end was left out
 
     @property
     def looks_bad(self) -> bool:
+        if self.bad_pages:
+            return True
         return self.ocr_pages > 0 and (self.truncated or len(self.text.strip()) < MIN_CHARS)
 
 
@@ -88,7 +95,31 @@ def _read_pdf(path: Path) -> LetterText:
                 pages.append(text)
                 ocr_pages += 1
                 truncated = truncated or cut
-    return LetterText("\n\n".join(pages), "pdf+ocr" if ocr_pages else "pdf", ocr_pages, truncated)
+    text = "\n\n".join(pages)
+    return LetterText(text[:MAX_CHARS], "pdf+ocr" if ocr_pages else "pdf", ocr_pages, truncated,
+                      pages=len(pages), cut=len(text) > MAX_CHARS)
+
+
+def load_letters(paths: list[Path]) -> LetterText:
+    """Several files = one letter, in this order. Each file is checked on its own, so the user
+    can be told exactly which page to photograph again."""
+    if len(paths) == 1:
+        return load_letter(paths[0])
+    parts, bad, ocr_pages, page_no, truncated = [], [], 0, 0, False
+    for number, path in enumerate(paths, 1):
+        part = load_letter(path)
+        if part.looks_bad:
+            bad.append(number)
+        start = page_no + 1
+        page_no += part.pages
+        label = f"Seite {start}" if part.pages == 1 else f"Seiten {start}–{page_no}"
+        parts.append(f"--- {label} ---\n{part.text.strip()}")
+        ocr_pages += part.ocr_pages
+        truncated = truncated or part.truncated
+    text = "\n\n".join(parts)
+    cut = len(text) > MAX_CHARS
+    source = "ocr" if ocr_pages == page_no else ("text" if not ocr_pages else "pdf+ocr")
+    return LetterText(text[:MAX_CHARS], source, ocr_pages, truncated, page_no, bad or None, cut)
 
 
 def load_letter(path: Path) -> LetterText:

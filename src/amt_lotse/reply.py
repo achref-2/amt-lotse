@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-from amt_lotse.extract import DATE_PATTERN, LetterInfo, client
+from amt_lotse.extract import DATE_PATTERN, LetterInfo, client, options_for
 
 INTENTS = {
     "more-time": {
@@ -101,7 +101,7 @@ def _write_body(letter: str, info: LetterInfo, intent: str, note: str | None) ->
                 ),
             },
         ],
-        options={"temperature": 0},
+        options=options_for(letter, note or ""),
     )
     return _clean_body(response["message"]["content"], info.sender)
 
@@ -147,7 +147,7 @@ def _summarize(german: str, language: str) -> str:
             },
             {"role": "user", "content": german},
         ],
-        options={"temperature": 0},
+        options=options_for(german),
     )
     return response["message"]["content"].strip()
 

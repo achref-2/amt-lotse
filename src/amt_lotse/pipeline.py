@@ -18,7 +18,7 @@ from amt_lotse.extract import (
     parse_german_amount,
     parse_german_date,
 )
-from amt_lotse.ocr import load_letter
+from amt_lotse.ocr import load_letters
 from amt_lotse.speak import say_date
 
 # Labels for the summary card, in the user's language.
@@ -63,12 +63,17 @@ class Analysis:
     amount_unclear: bool = False
     receives: Decimal | None = None
     reference: str | None = None
+    pages: int = 1
+    bad_pages: list[int] | None = None   # photos that must be taken again (1-based)
+    cut: bool = False                    # very long letter: the end was left out
 
 
-def analyze(path: Path, on_step=None) -> Analysis:
-    """on_step is called after the letter was read, before the facts are extracted (for progress bars)."""
-    loaded = load_letter(path)
-    result = Analysis(loaded.text, loaded.ocr_pages > 0, loaded.looks_bad, loaded.truncated)
+def analyze(path: Path | list[Path], on_step=None) -> Analysis:
+    """One file, or several files that together are ONE letter (pages, attachments), in order.
+    on_step is called after the letter was read, before the facts are extracted (for progress bars)."""
+    loaded = load_letters(path if isinstance(path, list) else [path])
+    result = Analysis(loaded.text, loaded.ocr_pages > 0, loaded.looks_bad, loaded.truncated,
+                      pages=loaded.pages, bad_pages=loaded.bad_pages, cut=loaded.cut)
     if loaded.looks_bad:
         return result
 

@@ -39,6 +39,17 @@ AMOUNT_PATTERN = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}\s*(?:€|EUR|Euro)?")
 
 client = ollama.Client(timeout=TIMEOUT_SECONDS)
 
+# Ollama's default context is about 4000 tokens. When a prompt is longer, Ollama silently drops the BEGINNING,
+# and page 1 is where the deadline and the amount are. So every call asks for a context that fits the letter.
+MIN_CTX, MAX_CTX = 4096, 16384
+
+
+def options_for(*texts: str) -> dict:
+    """temperature 0 + a context window big enough for these texts (German: ~3 characters per token)."""
+    needed = sum(len(t) for t in texts) // 3 + 2048      # + room for instructions and the answer
+    num_ctx = min(MAX_CTX, max(MIN_CTX, -(-needed // 1024) * 1024))
+    return {"temperature": 0, "num_ctx": num_ctx}
+
 
 class LetterInfo(BaseModel):
     # Field order matters: the model fills them top to bottom.
@@ -173,7 +184,7 @@ def extract_letter_info(letter: str) -> LetterInfo:
             {"role": "user", "content": f"Extract the information from this letter:\n\n{letter}"},
         ],
         format=LetterInfo.model_json_schema(),
-        options={"temperature": 0},
+        options=options_for(letter),
     )
     info = LetterInfo.model_validate_json(response["message"]["content"])
 

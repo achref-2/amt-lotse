@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from amt_lotse.cli import EXPLAIN_MODEL, LANGUAGES, is_in_language
 from amt_lotse.evaluate_text import amounts_in, dates_in
-from amt_lotse.extract import LetterInfo, client
+from amt_lotse.extract import LetterInfo, client, options_for
 
 NOT_IN_LETTER = "NOT_IN_LETTER"
 
@@ -57,7 +57,7 @@ def _ask_model(letter: str, info: LetterInfo, question: str, language: str) -> s
                 ),
             },
         ],
-        options={"temperature": 0},
+        options=options_for(letter, question),
     )
     return response["message"]["content"].strip()
 

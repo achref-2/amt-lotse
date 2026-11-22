@@ -36,8 +36,8 @@ import gradio as gr  # noqa: E402
 from amt_lotse.ask import answer_question
 from amt_lotse.cli import LANGUAGES, explain
 from amt_lotse.pipeline import analyze, calendar_file, summary_card, todo_box
-from amt_lotse.reply import INTENTS, build_reply
-from amt_lotse.speak import TEXT, SpokenFacts, build_script, speak
+from amt_lotse.reply import build_reply
+from amt_lotse.speak import SpokenFacts, build_script, speak
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = [  # fictional test letters, safe to show
@@ -54,9 +54,10 @@ UI = {
     "en": {
         "title": "Amt-Lotse", "subtitle": "Understand letters from German offices — in your language, read aloud, privately on this computer.",
         "step1": "1. Choose your language", "step2": "2. Your letter",
-        "hint2": "Take a photo of the letter with your phone, or choose a file (photo, PDF or text). The explanation starts by itself.",
-        "file": "Letter", "camera": "📷 Take a photo of the letter", 
-        "ask_h": "Ask a question about this letter", "ask_hint": "Press the microphone and ask in your language, or type your question. The answer comes only from this letter.", "ask_mic": "🎤 Speak your question", "ask_text": "Your question", "ask_ph": "For example: What happens if I don't pay?", "ask_btn": "Answer my question", "s_listen": "Listening to what you said …", "s_answer": "Looking for the answer in the letter …", "no_speech": "I could not understand the recording. Please try again, a little closer to the microphone.", "note_mic": "🎤 Or say it", "you_asked": "You asked", 
+        "hint2": "Take a photo of the letter with your phone, or choose a file (photo, PDF or text). The explanation starts by itself. Several pages: choose them all, or add them one by one after the first.",
+        "file": "Letter", "camera": "📷 Take a photo of the letter", "more": "📷 Add the next page", "pages_n": "Letter with {n} pages.", "bad_page": "Page {p} could not be read, so it was left out. Please photograph it again with “Add the next page”: good light, the whole page, phone straight above it.", "cut": "This letter is very long. Only the first pages were read.",
+
+        "ask_h": "Ask a question about this letter", "ask_hint": "Press the microphone and ask in your language, or type your question. The answer comes only from this letter.", "ask_mic": "🎤 Speak your question", "ask_text": "Your question", "ask_ph": "For example: What happens if I don't pay?", "ask_btn": "Answer my question", "s_listen": "Listening to what you said …", "s_answer": "Looking for the answer in the letter …", "no_speech": "I could not understand the recording. Please try again, a little closer to the microphone.", "note_mic": "🎤 Or say it", "you_asked": "You asked",
         "examples": "Try it with an example letter (not a real letter)",
         "go": "Explain the letter", "step3": "3. Result",
         "listen_again": "Listen again", "calendar": "Add the deadline to my calendar",
@@ -80,9 +81,10 @@ UI = {
     "fr": {
         "title": "Amt-Lotse", "subtitle": "Comprendre les lettres des administrations allemandes — dans votre langue, à voix haute, en privé sur cet ordinateur.",
         "step1": "1. Choisissez votre langue", "step2": "2. Votre lettre",
-        "hint2": "Prenez la lettre en photo avec votre téléphone, ou choisissez un fichier (photo, PDF ou texte). L'explication démarre toute seule.",
-        "file": "Lettre", "camera": "📷 Photographier la lettre", 
-        "ask_h": "Poser une question sur cette lettre", "ask_hint": "Appuyez sur le micro et posez votre question dans votre langue, ou écrivez-la. La réponse vient uniquement de cette lettre.", "ask_mic": "🎤 Dites votre question", "ask_text": "Votre question", "ask_ph": "Par exemple : que se passe-t-il si je ne paie pas ?", "ask_btn": "Répondre à ma question", "s_listen": "J'écoute ce que vous avez dit …", "s_answer": "Je cherche la réponse dans la lettre …", "no_speech": "Je n'ai pas compris l'enregistrement. Réessayez, un peu plus près du micro.", "note_mic": "🎤 Ou dites-le", "you_asked": "Votre question", 
+        "hint2": "Prenez la lettre en photo avec votre téléphone, ou choisissez un fichier (photo, PDF ou texte). L'explication démarre toute seule. Plusieurs pages : choisissez-les toutes, ou ajoutez-les une par une après la première.",
+        "file": "Lettre", "camera": "📷 Photographier la lettre", "more": "📷 Ajouter la page suivante", "pages_n": "Lettre de {n} pages.", "bad_page": "La page {p} n'a pas pu être lue, elle a été retirée. Photographiez-la de nouveau avec « Ajouter la page suivante » : bonne lumière, page entière, téléphone bien au-dessus.", "cut": "Cette lettre est très longue. Seules les premières pages ont été lues.",
+
+        "ask_h": "Poser une question sur cette lettre", "ask_hint": "Appuyez sur le micro et posez votre question dans votre langue, ou écrivez-la. La réponse vient uniquement de cette lettre.", "ask_mic": "🎤 Dites votre question", "ask_text": "Votre question", "ask_ph": "Par exemple : que se passe-t-il si je ne paie pas ?", "ask_btn": "Répondre à ma question", "s_listen": "J'écoute ce que vous avez dit …", "s_answer": "Je cherche la réponse dans la lettre …", "no_speech": "Je n'ai pas compris l'enregistrement. Réessayez, un peu plus près du micro.", "note_mic": "🎤 Ou dites-le", "you_asked": "Votre question",
         "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
         "go": "Expliquer la lettre", "step3": "3. Résultat",
         "listen_again": "Écouter encore", "calendar": "Ajouter la date limite à mon agenda",
@@ -106,9 +108,10 @@ UI = {
     "ar": {
         "title": "Amt-Lotse", "subtitle": "افهم رسائل الإدارات الألمانية — بلغتك، بصوت مسموع، وبخصوصية تامة على هذا الحاسوب.",
         "step1": "الخطوة 1: اختر لغتك", "step2": "الخطوة 2: رسالتك",
-        "hint2": "التقط صورة للرسالة بهاتفك، أو اختر ملفا: صورة أو ملف PDF أو نص. يبدأ الشرح تلقائيا.",
-        "file": "الرسالة", "camera": "📷 صوّر الرسالة", 
-        "ask_h": "اسأل سؤالا عن هذه الرسالة", "ask_hint": "اضغط على الميكروفون واسأل بلغتك، أو اكتب سؤالك. الجواب يأتي فقط من هذه الرسالة.", "ask_mic": "🎤 قل سؤالك", "ask_text": "سؤالك", "ask_ph": "مثلا: ماذا يحدث إذا لم أدفع؟", "ask_btn": "أجب عن سؤالي", "s_listen": "أستمع إلى ما قلته …", "s_answer": "أبحث عن الجواب في الرسالة …", "no_speech": "لم أفهم التسجيل. من فضلك حاول مرة أخرى، أقرب قليلا من الميكروفون.", "note_mic": "🎤 أو قله بصوتك", "you_asked": "سؤالك", 
+        "hint2": "التقط صورة للرسالة بهاتفك، أو اختر ملفا: صورة أو ملف PDF أو نص. يبدأ الشرح تلقائيا. عدة صفحات: اخترها كلها، أو أضفها واحدة بعد الأخرى بعد الأولى.",
+        "file": "الرسالة", "camera": "📷 صوّر الرسالة", "more": "📷 أضف الصفحة التالية", "pages_n": "رسالة من {n} صفحات.", "bad_page": "لم تمكن قراءة الصفحة {p}، لذلك تم حذفها. من فضلك صوّرها مرة أخرى بزر «أضف الصفحة التالية»: إضاءة جيدة، الصفحة كاملة، والهاتف فوقها مباشرة.", "cut": "هذه الرسالة طويلة جدا. تمت قراءة الصفحات الأولى فقط.",
+
+        "ask_h": "اسأل سؤالا عن هذه الرسالة", "ask_hint": "اضغط على الميكروفون واسأل بلغتك، أو اكتب سؤالك. الجواب يأتي فقط من هذه الرسالة.", "ask_mic": "🎤 قل سؤالك", "ask_text": "سؤالك", "ask_ph": "مثلا: ماذا يحدث إذا لم أدفع؟", "ask_btn": "أجب عن سؤالي", "s_listen": "أستمع إلى ما قلته …", "s_answer": "أبحث عن الجواب في الرسالة …", "no_speech": "لم أفهم التسجيل. من فضلك حاول مرة أخرى، أقرب قليلا من الميكروفون.", "note_mic": "🎤 أو قله بصوتك", "you_asked": "سؤالك",
         "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
         "go": "اشرح الرسالة", "step3": "الخطوة 3: النتيجة",
         "listen_again": "استمع مرة أخرى", "calendar": "أضف الموعد النهائي إلى تقويمي",
@@ -132,9 +135,10 @@ UI = {
     "de": {
         "title": "Amt-Lotse", "subtitle": "Briefe von Ämtern verstehen — in Ihrer Sprache, vorgelesen, privat auf diesem Computer.",
         "step1": "1. Sprache wählen", "step2": "2. Ihr Brief",
-        "hint2": "Machen Sie mit dem Handy ein Foto vom Brief, oder wählen Sie eine Datei (Foto, PDF oder Text). Die Erklärung startet von selbst.",
-        "file": "Brief", "camera": "📷 Brief fotografieren", 
-        "ask_h": "Eine Frage zu diesem Brief stellen", "ask_hint": "Drücken Sie auf das Mikrofon und fragen Sie in Ihrer Sprache, oder schreiben Sie die Frage. Die Antwort kommt nur aus diesem Brief.", "ask_mic": "🎤 Frage sprechen", "ask_text": "Ihre Frage", "ask_ph": "Zum Beispiel: Was passiert, wenn ich nicht zahle?", "ask_btn": "Frage beantworten", "s_listen": "Ich höre, was Sie gesagt haben …", "s_answer": "Ich suche die Antwort im Brief …", "no_speech": "Ich konnte die Aufnahme nicht verstehen. Bitte noch einmal, etwas näher am Mikrofon.", "note_mic": "🎤 Oder sprechen Sie es", "you_asked": "Ihre Frage", 
+        "hint2": "Machen Sie mit dem Handy ein Foto vom Brief, oder wählen Sie eine Datei (Foto, PDF oder Text). Die Erklärung startet von selbst. Mehrere Seiten: alle auswählen, oder nach der ersten eine nach der anderen hinzufügen.",
+        "file": "Brief", "camera": "📷 Brief fotografieren", "more": "📷 Nächste Seite hinzufügen", "pages_n": "Brief mit {n} Seiten.", "bad_page": "Seite {p} war nicht lesbar und wurde herausgenommen. Bitte fotografieren Sie sie noch einmal mit „Nächste Seite hinzufügen“: gutes Licht, ganze Seite, Handy gerade darüber.", "cut": "Dieser Brief ist sehr lang. Nur die ersten Seiten wurden gelesen.",
+
+        "ask_h": "Eine Frage zu diesem Brief stellen", "ask_hint": "Drücken Sie auf das Mikrofon und fragen Sie in Ihrer Sprache, oder schreiben Sie die Frage. Die Antwort kommt nur aus diesem Brief.", "ask_mic": "🎤 Frage sprechen", "ask_text": "Ihre Frage", "ask_ph": "Zum Beispiel: Was passiert, wenn ich nicht zahle?", "ask_btn": "Frage beantworten", "s_listen": "Ich höre, was Sie gesagt haben …", "s_answer": "Ich suche die Antwort im Brief …", "no_speech": "Ich konnte die Aufnahme nicht verstehen. Bitte noch einmal, etwas näher am Mikrofon.", "note_mic": "🎤 Oder sprechen Sie es", "you_asked": "Ihre Frage",
         "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
         "go": "Brief erklären", "step3": "3. Ergebnis",
         "listen_again": "Noch einmal anhören", "calendar": "Frist in meinen Kalender eintragen",
@@ -169,6 +173,7 @@ CSS = """
 .gradio-container h2 { font-size: calc(var(--amt-base) * 1.4) !important; margin-top: 1.2em !important; }
 .gradio-container button { min-height: 56px; }
 #go, #go button { font-size: calc(var(--amt-base) * 1.3) !important; min-height: 76px !important; }
+#more { display: none !important; }      /* only opened by the "Add the next page" button */
 #camera { font-size: calc(var(--amt-base) * 1.2) !important; min-height: 72px !important; }
 /* phones: no wasted space at the sides, everything one thumb away */
 @media (max-width: 600px) {
@@ -227,6 +232,21 @@ HEAD = """
 CAMERA_JS = """
 () => {
   const input = document.querySelector('#letter input[type=file]');
+  if (!input) return;
+  const accept = input.getAttribute('accept');
+  input.setAttribute('accept', 'image/*');
+  input.setAttribute('capture', 'environment');
+  input.click();
+  setTimeout(() => {          // put the box back to normal: photos, PDFs and text files
+    input.removeAttribute('capture');
+    if (accept) input.setAttribute('accept', accept); else input.removeAttribute('accept');
+  }, 1000);
+}
+"""
+# "Add the next page": the same, into a second, invisible upload box, so the pages already there are kept.
+MORE_JS = """
+() => {
+  const input = document.querySelector('#more input[type=file]');
   if (!input) return;
   const accept = input.getAttribute('accept');
   input.setAttribute('accept', 'image/*');
@@ -304,46 +324,72 @@ def _copy_input(file_path: str) -> Path:
 
 
 # ---------------------------------------------------------------- actions
-def explain_letter(file_path, lang, read_aloud, slow):
+def new_letter(files, pages):
+    """A new letter: the files in the upload box are its pages, in this order.
+    The box is emptied afterwards: Gradio's multi-file box adds new uploads to the old ones,
+    so a second letter would otherwise get mixed with the pages of the first.
+    Without new files ("Explain" pressed again), the current letter is read again."""
+    if not files:
+        return pages or [], None
+    return [str(_copy_input(f)) for f in files], None
+
+
+def add_pages(files, pages):
+    """'Add the next page': keep the pages so far, add the new ones at the end. Empties the extra upload box."""
+    return (pages or []) + [str(_copy_input(f)) for f in (files or [])], None
+
+
+def explain_letter(pages, lang, read_aloud, slow):
     """Generator: every `yield` updates the page, so the status line is announced step by step."""
     t, rtl = UI[lang], lang == "ar"
     hidden = gr.update(visible=False)
-    # outputs: status, step3, todo, card, audio, listen_again, calendar, explanation, read_text, state
-    if not file_path:
-        yield (_status(t["no_file"]), hidden, "", "", None, hidden, hidden, "", "", None)
+    nothing = gr.update()
+    # outputs: status, step3, todo, card, audio, listen_again, calendar, explanation, read_text, state, pages, more_btn
+    if not pages:
+        yield (_status(t["no_file"]), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
         return
 
-    yield (_status(f"{t['s_read']} <small>{t['first_time']}</small>"), hidden, "", "", None, hidden, hidden, "", "", None)
+    count = f" {t['pages_n'].format(n=len(pages))}" if len(pages) > 1 else ""
+    yield (_status(f"{t['s_read']}{count} <small>{t['first_time']}</small>"), hidden, "", "", None, hidden, hidden,
+           "", "", None, nothing, hidden)
     try:
-        path = _copy_input(file_path)
-        a = analyze(path)
+        a = analyze([Path(p) for p in pages])
         if a.looks_bad:
-            audio = str(speak(TEXT[lang]["bad_photo"], lang, "bad_photo", slow=slow, play=False)) if read_aloud else None
-            bad = f'<div class="todo urgent" role="alert" dir="auto"><div class="what">{t["bad"]}</div></div>'
-            yield (_status(t["bad"]), gr.update(visible=True), bad, "", audio, gr.update(visible=bool(audio)), hidden,
-                   "", a.text, None)
+            if a.bad_pages and len(pages) > 1:
+                # several files, some unreadable: take those out and say which one to photograph again
+                keep = [p for i, p in enumerate(pages, 1) if i not in a.bad_pages]
+                message = " ".join(t["bad_page"].format(p=n) for n in a.bad_pages)
+            else:
+                keep, message = [], t["bad"]
+            audio = str(speak(message, lang, "bad_photo", slow=slow, play=False)) if read_aloud else None
+            bad = f'<div class="todo urgent" role="alert" dir="auto"><div class="what">{message}</div></div>'
+            yield (_status(message), gr.update(visible=True), bad, "", audio, gr.update(visible=bool(audio)), hidden,
+                   "", a.text, None, keep, gr.update(visible=bool(keep)))
             return
 
         todo, card = todo_box(a, lang), summary_card(a, lang)
+        if a.cut:
+            card = f"⚠️ {t['cut']}\n\n{card}"
         cal = calendar_file(a, lang)
         yield (_status(t["s_explain"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), None, hidden,
-               gr.update(value=cal, visible=bool(cal)), "", a.text, None)
+               gr.update(value=cal, visible=bool(cal)), "", a.text, None, nothing, hidden)
 
         explanation = explain(a.text, a.info, lang).split("\n\n(⚠")[0]
         audio = None
         if read_aloud:
             yield (_status(t["s_audio"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), None, hidden,
-                   gr.update(value=cal, visible=bool(cal)), gr.update(value=explanation, rtl=rtl), a.text, None)
+                   gr.update(value=cal, visible=bool(cal)), gr.update(value=explanation, rtl=rtl), a.text, None,
+                   nothing, hidden)
             facts = SpokenFacts(sender=a.info.sender, deadline=a.deadline, amount=a.amount,
                                 receives=a.receives, reference=a.reference, amount_unclear=a.amount_unclear)
-            audio = str(speak(build_script(facts, explanation, lang), lang, path.stem, slow=slow, play=False))
+            audio = str(speak(build_script(facts, explanation, lang), lang, Path(pages[0]).stem, slow=slow, play=False))
 
         state = {"text": a.text, "info": a.info.model_dump(), "reference": a.reference}
-        yield (_status(t["s_done"]), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), audio,
+        yield (_status(t["s_done"] + count), gr.update(visible=True), todo, gr.update(value=card, rtl=rtl), audio,
                gr.update(visible=bool(audio)), gr.update(value=cal, visible=bool(cal)),
-               gr.update(value=explanation, rtl=rtl), a.text, state)
+               gr.update(value=explanation, rtl=rtl), a.text, state, nothing, gr.update(visible=True))
     except Exception as e:  # e.g. Ollama not running
-        yield (_status(t["error"].format(e=e)), hidden, "", "", None, hidden, hidden, "", "", None)
+        yield (_status(t["error"].format(e=e)), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
 
 
 def write_reply(state, intent, note, lang):
@@ -442,7 +488,7 @@ def switch_language(lang):
         gr.update(value="A+ " + t["bigger"]), gr.update(value="A− " + t["smaller"]), gr.update(value="◐ " + t["contrast"]),
         f"### {t['ask_h']}", t["ask_hint"], gr.update(label=t["ask_mic"]),
         gr.update(label=t["ask_text"], placeholder=t["ask_ph"], rtl=rtl), gr.update(value=t["ask_btn"]),
-        gr.update(label=t["note_mic"]),
+        gr.update(label=t["note_mic"]), gr.update(value=t["more"]),
         t["footer"], lang,
     )
 
@@ -468,15 +514,19 @@ def build_ui() -> gr.Blocks:
         hint2 = gr.Markdown(t["hint2"])
         camera = gr.Button(t["camera"], variant="primary", size="lg", elem_id="camera")
         file_in = gr.File(label=t["file"], file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"],
-                          type="filepath", elem_id="letter")
+                          type="filepath", file_count="multiple", elem_id="letter")
+        more = gr.File(file_types=[".jpg", ".jpeg", ".png", ".webp", ".pdf", ".txt"], type="filepath",
+                       file_count="multiple", elem_id="more", show_label=False)
+        pages = gr.State([])
         with gr.Accordion(t["examples"], open=False) as examples_box:
-            gr.Examples([[str(p)] for p in EXAMPLES if p.exists()], inputs=[file_in], label="")
+            gr.Examples([[[str(p)]] for p in EXAMPLES if p.exists()], inputs=[file_in], label="")
         go = gr.Button(t["go"], variant="primary", size="lg", elem_id="go")
         status = gr.Markdown(elem_id="status")
 
         with gr.Column(visible=False) as result:
             step3 = gr.Markdown(f"## {t['step3']}")
             todo = gr.HTML(elem_id="todo")
+            more_btn = gr.Button(t["more"], size="lg", visible=False, elem_id="more-btn")
             with gr.Row():
                 listen_again = gr.Button(t["listen_again"], size="lg", visible=False, elem_id="listen")
                 calendar = gr.DownloadButton(t["calendar"], size="lg", visible=False)
@@ -520,17 +570,25 @@ def build_ui() -> gr.Blocks:
         translated = [header, step1, step2, hint2, camera, file_in, examples_box, go, step3, listen_again, calendar,
                       read_box, reply_box, intent, note, reply_btn, reply_text, reply_file, settings_box,
                       read_aloud, slow, bigger, smaller, contrast,
-                      ask_h, ask_hint, ask_mic, ask_text, ask_btn, note_mic, footer, saved_lang]
-        explain_outputs = [status, result, todo, card, audio, listen_again, calendar, explanation, read_text, state]
+                      ask_h, ask_hint, ask_mic, ask_text, ask_btn, note_mic, more_btn, footer, saved_lang]
+        explain_outputs = [status, result, todo, card, audio, listen_again, calendar, explanation, read_text, state,
+                           pages, more_btn]
 
         ui.load(None, js=ON_LOAD_JS)
         ui.load(lambda saved: saved or "en", inputs=saved_lang, outputs=lang)
         lang.change(switch_language, inputs=lang, outputs=translated, js=SET_LANG_JS)
 
-        run = dict(fn=explain_letter, inputs=[file_in, lang, read_aloud, slow], outputs=explain_outputs,
+        run = dict(fn=explain_letter, inputs=[pages, lang, read_aloud, slow], outputs=explain_outputs,
                    show_progress="hidden")
-        file_in.upload(**run).then(None, js=FOCUS_RESULT_JS)   # upload = start automatically
-        go.click(**run).then(None, js=FOCUS_RESULT_JS)
+        # upload = a new letter, start automatically
+        file_in.upload(new_letter, [file_in, pages], [pages, file_in], show_progress="hidden") \
+            .then(**run).then(None, js=FOCUS_RESULT_JS)
+        go.click(new_letter, [file_in, pages], [pages, file_in], show_progress="hidden") \
+            .then(**run).then(None, js=FOCUS_RESULT_JS)
+        # "Add the next page": one more photo, then the whole letter is read again
+        more_btn.click(None, js=MORE_JS)
+        more.upload(add_pages, [more, pages], [pages, more], show_progress="hidden") \
+            .then(**run).then(None, js=FOCUS_RESULT_JS)
 
         reply_btn.click(write_reply, [state, intent, note, lang], [reply_text, reply_status, reply_file],
                         show_progress="hidden")
