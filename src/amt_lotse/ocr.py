@@ -13,7 +13,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from amt_lotse.extract import client
+from amt_lotse.extract import ModelLoopError, chat
 
 OCR_MODEL = os.environ.get("AMT_LOTSE_OCR_MODEL", "qwen2.5vl:3b")
 
@@ -23,6 +23,7 @@ NUM_CTX = 8192         # context window for OCR (image tokens + the transcribed 
 MIN_CHARS = 150        # less text than this = probably a bad photo
 PDF_TEXT_MIN = 50      # a PDF page with less text than this is treated as a scan
 MAX_CHARS = 40_000     # ~15 pages; beyond this the end is cut (better than the models losing page 1)
+HALF_OVERLAP = 0.06    # the two halves share 6 % of the page height, so no line is cut through
 
 OCR_PROMPT = (
     "This is a photo or scan of a German letter. "
@@ -68,15 +69,57 @@ def _shrink_png(image_bytes: bytes) -> bytes:
         return out.getvalue()
 
 
-def ocr_image(image_bytes: bytes) -> tuple[str, bool]:
-    """Returns (text, truncated). truncated=True means the model stopped before the end."""
-    response = client.chat(
+def _halves(image_bytes: bytes) -> list[bytes]:
+    """The top and the bottom half of the photo (overlapping a little), as two images."""
+    from PIL import Image, ImageOps
+
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        img = ImageOps.exif_transpose(img)
+        w, h = img.size
+        cut, overlap = h // 2, int(h * HALF_OVERLAP)
+        parts = []
+        for box in ((0, 0, w, cut + overlap), (0, cut - overlap, w, h)):
+            out = io.BytesIO()
+            img.crop(box).convert("RGB").save(out, format="PNG")
+            parts.append(out.getvalue())
+        return parts
+
+
+def _join_halves(top: str, bottom: str) -> str:
+    """Glue the halves; lines that both halves read (the overlap) are kept once."""
+    top_lines, bottom_lines = top.splitlines(), bottom.splitlines()
+    for n in range(min(len(top_lines), len(bottom_lines), 6), 0, -1):
+        if [x.strip() for x in top_lines[-n:]] == [x.strip() for x in bottom_lines[:n]]:
+            bottom_lines = bottom_lines[n:]
+            break
+    return "\n".join(top_lines + bottom_lines).strip()
+
+
+def _ocr_once(png: bytes) -> tuple[str, bool]:
+    response = chat(
         model=OCR_MODEL,
-        messages=[{"role": "user", "content": OCR_PROMPT, "images": [_shrink_png(image_bytes)]}],
+        messages=[{"role": "user", "content": OCR_PROMPT, "images": [png]}],
         options={"temperature": 0, "num_ctx": NUM_CTX},
     )
-    truncated = response.get("done_reason") == "length"
-    return response["message"]["content"].strip(), truncated
+    return response["message"]["content"].strip(), response.get("done_reason") == "length"
+
+
+def ocr_image(image_bytes: bytes) -> tuple[str, bool]:
+    """Returns (text, truncated). truncated=True means the model stopped before the end."""
+    try:
+        return _ocr_once(_shrink_png(image_bytes))
+    except ModelLoopError:
+        pass
+    # Small vision models loop on pages with tables, dotted lines or many similar rows: the same line
+    # again and again. Half a page means half as much to write, and each half is seen in more detail.
+    print("  Reading the photo in two halves instead ...", flush=True)
+    try:
+        texts, cuts = zip(*(_ocr_once(_shrink_png(half)) for half in _halves(image_bytes)), strict=True)
+    except ModelLoopError:
+        # Still stuck: treat it as an unreadable photo, so the user is asked to take it again.
+        print("  ... could not read this photo.", flush=True)
+        return "", True
+    return _join_halves(*texts), any(cuts)
 
 
 def _read_pdf(path: Path) -> LetterText:

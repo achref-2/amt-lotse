@@ -44,6 +44,39 @@ client = ollama.Client(timeout=TIMEOUT_SECONDS)
 MIN_CTX, MAX_CTX = 4096, 16384
 
 
+# At temperature 0 a model that starts repeating itself keeps picking the same next word, and newer Ollama
+# versions abort that with "token repeat limit reached". One retry with a repetition penalty and a little
+# randomness breaks the loop; the safety rules after every call still check the answer.
+LOOP_RETRY = {"repeat_penalty": 1.15, "repeat_last_n": 256, "temperature": 0.3}
+
+
+class ModelLoopError(RuntimeError):
+    """The model kept repeating itself, also on the retry."""
+
+
+def is_loop_error(e: Exception) -> bool:
+    return isinstance(e, ollama.ResponseError) and "repeat" in str(e).lower()
+
+
+def chat(**kwargs):
+    """client.chat with one automatic retry when the model gets stuck in a loop."""
+    try:
+        return client.chat(**kwargs)
+    except ollama.ResponseError as e:
+        if not is_loop_error(e):
+            raise
+    print("  The model got stuck repeating itself; trying once more ...", flush=True)
+    try:
+        response = client.chat(**{**kwargs, "options": {**(kwargs.get("options") or {}), **LOOP_RETRY}})
+    except ollama.ResponseError as e:
+        if is_loop_error(e):
+            print("  ... stuck again.", flush=True)
+            raise ModelLoopError(str(e)) from e
+        raise
+    print("  ... worked on the second try.", flush=True)
+    return response
+
+
 def options_for(*texts: str) -> dict:
     """temperature 0 + a context window big enough for these texts (German: ~3 characters per token)."""
     needed = sum(len(t) for t in texts) // 3 + 2048      # + room for instructions and the answer
@@ -169,7 +202,7 @@ def parse_german_amount(text: str) -> Decimal:
 
 
 def extract_letter_info(letter: str) -> LetterInfo:
-    response = client.chat(
+    response = chat(
         model=MODEL,
         messages=[
             {

@@ -35,6 +35,7 @@ import gradio as gr  # noqa: E402
 
 from amt_lotse.ask import answer_question
 from amt_lotse.cli import LANGUAGES, explain
+from amt_lotse.extract import ModelLoopError
 from amt_lotse.pipeline import analyze, calendar_file, summary_card, todo_box
 from amt_lotse.reply import build_reply
 from amt_lotse.speak import SpokenFacts, build_script, speak
@@ -57,7 +58,7 @@ UI = {
         "hint2": "Take a photo of the letter with your phone, or choose a file (photo, PDF or text). The explanation starts by itself. Several pages: choose them all, or add them one by one after the first.",
         "file": "Letter", "camera": "📷 Take a photo of the letter", "more": "📷 Add the next page", "pages_n": "Letter with {n} pages.", "bad_page": "Page {p} could not be read, so it was left out. Please photograph it again with “Add the next page”: good light, the whole page, phone straight above it.", "cut": "This letter is very long. Only the first pages were read.",
 
-        "ask_h": "Ask a question about this letter", "ask_hint": "Press the microphone and ask in your language, or type your question. The answer comes only from this letter.", "ask_mic": "🎤 Speak your question", "ask_text": "Your question", "ask_ph": "For example: What happens if I don't pay?", "ask_btn": "Answer my question", "s_listen": "Listening to what you said …", "s_answer": "Looking for the answer in the letter …", "no_speech": "I could not understand the recording. Please try again, a little closer to the microphone.", "note_mic": "🎤 Or say it", "you_asked": "You asked",
+        "ask_h": "Ask a question about this letter", "ask_hint": "Press the microphone and ask in your language, or type your question. The answer comes only from this letter.", "ask_mic": "🎤 Speak your question", "ask_text": "Your question", "ask_ph": "For example: What happens if I don't pay?", "ask_btn": "Answer my question", "s_listen": "Listening to what you said …", "s_answer": "Looking for the answer in the letter …", "no_speech": "I could not understand the recording. Please try again, a little closer to the microphone.", "note_mic": "🎤 Or say it", "voice_error": "The recording could not be turned into text ({e}). Please try again or type your question.", "you_asked": "You asked",
         "examples": "Try it with an example letter (not a real letter)",
         "go": "Explain the letter", "step3": "3. Result",
         "listen_again": "Listen again", "calendar": "Add the deadline to my calendar",
@@ -73,7 +74,7 @@ UI = {
         "s_reply": "Writing the reply …", "s_reply_done": "The reply is ready.",
         "first_time": "The first time can take 1–2 minutes. Please wait.",
         "bad": "The letter could not be read well. Please take the photo again: good light, the whole page, phone held straight above it.",
-        "no_file": "Please add a letter first (step 2).", "error": "Something went wrong: {e}. Is Ollama running?",
+        "no_file": "Please add a letter first (step 2).", "error": "Something went wrong: {e}. Is Ollama running?", "stuck": "The AI model got stuck and repeated itself. Please press the button again. If it happens again, take a new, sharper photo.",
         "intents": {"more-time": "Ask for more time", "installments": "Ask to pay in parts (installments)",
                     "already-paid": "Say that I already paid", "reschedule": "Ask for a new appointment",
                     "question": "Ask a question about the letter"},
@@ -84,7 +85,7 @@ UI = {
         "hint2": "Prenez la lettre en photo avec votre téléphone, ou choisissez un fichier (photo, PDF ou texte). L'explication démarre toute seule. Plusieurs pages : choisissez-les toutes, ou ajoutez-les une par une après la première.",
         "file": "Lettre", "camera": "📷 Photographier la lettre", "more": "📷 Ajouter la page suivante", "pages_n": "Lettre de {n} pages.", "bad_page": "La page {p} n'a pas pu être lue, elle a été retirée. Photographiez-la de nouveau avec « Ajouter la page suivante » : bonne lumière, page entière, téléphone bien au-dessus.", "cut": "Cette lettre est très longue. Seules les premières pages ont été lues.",
 
-        "ask_h": "Poser une question sur cette lettre", "ask_hint": "Appuyez sur le micro et posez votre question dans votre langue, ou écrivez-la. La réponse vient uniquement de cette lettre.", "ask_mic": "🎤 Dites votre question", "ask_text": "Votre question", "ask_ph": "Par exemple : que se passe-t-il si je ne paie pas ?", "ask_btn": "Répondre à ma question", "s_listen": "J'écoute ce que vous avez dit …", "s_answer": "Je cherche la réponse dans la lettre …", "no_speech": "Je n'ai pas compris l'enregistrement. Réessayez, un peu plus près du micro.", "note_mic": "🎤 Ou dites-le", "you_asked": "Votre question",
+        "ask_h": "Poser une question sur cette lettre", "ask_hint": "Appuyez sur le micro et posez votre question dans votre langue, ou écrivez-la. La réponse vient uniquement de cette lettre.", "ask_mic": "🎤 Dites votre question", "ask_text": "Votre question", "ask_ph": "Par exemple : que se passe-t-il si je ne paie pas ?", "ask_btn": "Répondre à ma question", "s_listen": "J'écoute ce que vous avez dit …", "s_answer": "Je cherche la réponse dans la lettre …", "no_speech": "Je n'ai pas compris l'enregistrement. Réessayez, un peu plus près du micro.", "note_mic": "🎤 Ou dites-le", "voice_error": "L'enregistrement n'a pas pu être transformé en texte ({e}). Réessayez ou écrivez votre question.", "you_asked": "Votre question",
         "examples": "Essayer avec une lettre d'exemple (pas une vraie lettre)",
         "go": "Expliquer la lettre", "step3": "3. Résultat",
         "listen_again": "Écouter encore", "calendar": "Ajouter la date limite à mon agenda",
@@ -100,7 +101,7 @@ UI = {
         "s_reply": "Rédaction de la réponse …", "s_reply_done": "La réponse est prête.",
         "first_time": "La première fois peut prendre 1 à 2 minutes. Merci de patienter.",
         "bad": "La lettre n'a pas pu être bien lue. Reprenez la photo : bonne lumière, page entière, téléphone bien au-dessus.",
-        "no_file": "Ajoutez d'abord une lettre (étape 2).", "error": "Une erreur est survenue : {e}. Ollama est-il lancé ?",
+        "no_file": "Ajoutez d'abord une lettre (étape 2).", "error": "Une erreur est survenue : {e}. Ollama est-il lancé ?", "stuck": "Le modèle d'IA s'est bloqué et s'est répété. Appuyez de nouveau sur le bouton. Si cela recommence, prenez une nouvelle photo plus nette.",
         "intents": {"more-time": "Demander plus de temps", "installments": "Demander à payer en plusieurs fois",
                     "already-paid": "Dire que j'ai déjà payé", "reschedule": "Demander un nouveau rendez-vous",
                     "question": "Poser une question sur la lettre"},
@@ -111,7 +112,7 @@ UI = {
         "hint2": "التقط صورة للرسالة بهاتفك، أو اختر ملفا: صورة أو ملف PDF أو نص. يبدأ الشرح تلقائيا. عدة صفحات: اخترها كلها، أو أضفها واحدة بعد الأخرى بعد الأولى.",
         "file": "الرسالة", "camera": "📷 صوّر الرسالة", "more": "📷 أضف الصفحة التالية", "pages_n": "رسالة من {n} صفحات.", "bad_page": "لم تمكن قراءة الصفحة {p}، لذلك تم حذفها. من فضلك صوّرها مرة أخرى بزر «أضف الصفحة التالية»: إضاءة جيدة، الصفحة كاملة، والهاتف فوقها مباشرة.", "cut": "هذه الرسالة طويلة جدا. تمت قراءة الصفحات الأولى فقط.",
 
-        "ask_h": "اسأل سؤالا عن هذه الرسالة", "ask_hint": "اضغط على الميكروفون واسأل بلغتك، أو اكتب سؤالك. الجواب يأتي فقط من هذه الرسالة.", "ask_mic": "🎤 قل سؤالك", "ask_text": "سؤالك", "ask_ph": "مثلا: ماذا يحدث إذا لم أدفع؟", "ask_btn": "أجب عن سؤالي", "s_listen": "أستمع إلى ما قلته …", "s_answer": "أبحث عن الجواب في الرسالة …", "no_speech": "لم أفهم التسجيل. من فضلك حاول مرة أخرى، أقرب قليلا من الميكروفون.", "note_mic": "🎤 أو قله بصوتك", "you_asked": "سؤالك",
+        "ask_h": "اسأل سؤالا عن هذه الرسالة", "ask_hint": "اضغط على الميكروفون واسأل بلغتك، أو اكتب سؤالك. الجواب يأتي فقط من هذه الرسالة.", "ask_mic": "🎤 قل سؤالك", "ask_text": "سؤالك", "ask_ph": "مثلا: ماذا يحدث إذا لم أدفع؟", "ask_btn": "أجب عن سؤالي", "s_listen": "أستمع إلى ما قلته …", "s_answer": "أبحث عن الجواب في الرسالة …", "no_speech": "لم أفهم التسجيل. من فضلك حاول مرة أخرى، أقرب قليلا من الميكروفون.", "note_mic": "🎤 أو قله بصوتك", "voice_error": "تعذر تحويل التسجيل إلى نص ({e}). من فضلك حاول مرة أخرى أو اكتب سؤالك.", "you_asked": "سؤالك",
         "examples": "جرّب برسالة نموذجية (ليست رسالة حقيقية)",
         "go": "اشرح الرسالة", "step3": "الخطوة 3: النتيجة",
         "listen_again": "استمع مرة أخرى", "calendar": "أضف الموعد النهائي إلى تقويمي",
@@ -127,7 +128,7 @@ UI = {
         "s_reply": "جار كتابة الرد …", "s_reply_done": "الرد جاهز.",
         "first_time": "قد تستغرق المرة الأولى دقيقة أو دقيقتين. من فضلك انتظر.",
         "bad": "لم تتم قراءة الرسالة جيدا. من فضلك التقط الصورة مرة أخرى: إضاءة جيدة، الصفحة كاملة، والهاتف مستقيم فوقها.",
-        "no_file": "من فضلك أضف رسالة أولا (الخطوة 2).", "error": "حدث خطأ: {e}. هل برنامج Ollama يعمل؟",
+        "no_file": "من فضلك أضف رسالة أولا (الخطوة 2).", "error": "حدث خطأ: {e}. هل برنامج Ollama يعمل؟", "stuck": "توقف نموذج الذكاء الاصطناعي وكرر نفسه. من فضلك اضغط على الزر مرة أخرى. إذا تكرر ذلك، التقط صورة جديدة أوضح.",
         "intents": {"more-time": "طلب مهلة إضافية", "installments": "طلب الدفع على أقساط",
                     "already-paid": "القول إنني دفعت بالفعل", "reschedule": "طلب موعد جديد",
                     "question": "طرح سؤال عن الرسالة"},
@@ -138,7 +139,7 @@ UI = {
         "hint2": "Machen Sie mit dem Handy ein Foto vom Brief, oder wählen Sie eine Datei (Foto, PDF oder Text). Die Erklärung startet von selbst. Mehrere Seiten: alle auswählen, oder nach der ersten eine nach der anderen hinzufügen.",
         "file": "Brief", "camera": "📷 Brief fotografieren", "more": "📷 Nächste Seite hinzufügen", "pages_n": "Brief mit {n} Seiten.", "bad_page": "Seite {p} war nicht lesbar und wurde herausgenommen. Bitte fotografieren Sie sie noch einmal mit „Nächste Seite hinzufügen“: gutes Licht, ganze Seite, Handy gerade darüber.", "cut": "Dieser Brief ist sehr lang. Nur die ersten Seiten wurden gelesen.",
 
-        "ask_h": "Eine Frage zu diesem Brief stellen", "ask_hint": "Drücken Sie auf das Mikrofon und fragen Sie in Ihrer Sprache, oder schreiben Sie die Frage. Die Antwort kommt nur aus diesem Brief.", "ask_mic": "🎤 Frage sprechen", "ask_text": "Ihre Frage", "ask_ph": "Zum Beispiel: Was passiert, wenn ich nicht zahle?", "ask_btn": "Frage beantworten", "s_listen": "Ich höre, was Sie gesagt haben …", "s_answer": "Ich suche die Antwort im Brief …", "no_speech": "Ich konnte die Aufnahme nicht verstehen. Bitte noch einmal, etwas näher am Mikrofon.", "note_mic": "🎤 Oder sprechen Sie es", "you_asked": "Ihre Frage",
+        "ask_h": "Eine Frage zu diesem Brief stellen", "ask_hint": "Drücken Sie auf das Mikrofon und fragen Sie in Ihrer Sprache, oder schreiben Sie die Frage. Die Antwort kommt nur aus diesem Brief.", "ask_mic": "🎤 Frage sprechen", "ask_text": "Ihre Frage", "ask_ph": "Zum Beispiel: Was passiert, wenn ich nicht zahle?", "ask_btn": "Frage beantworten", "s_listen": "Ich höre, was Sie gesagt haben …", "s_answer": "Ich suche die Antwort im Brief …", "no_speech": "Ich konnte die Aufnahme nicht verstehen. Bitte noch einmal, etwas näher am Mikrofon.", "note_mic": "🎤 Oder sprechen Sie es", "voice_error": "Die Aufnahme konnte nicht in Text umgewandelt werden ({e}). Bitte noch einmal versuchen oder die Frage schreiben.", "you_asked": "Ihre Frage",
         "examples": "Mit einem Beispielbrief ausprobieren (kein echter Brief)",
         "go": "Brief erklären", "step3": "3. Ergebnis",
         "listen_again": "Noch einmal anhören", "calendar": "Frist in meinen Kalender eintragen",
@@ -154,7 +155,7 @@ UI = {
         "s_reply": "Die Antwort wird geschrieben …", "s_reply_done": "Die Antwort ist fertig.",
         "first_time": "Beim ersten Mal kann es 1–2 Minuten dauern. Bitte warten.",
         "bad": "Der Brief war nicht gut lesbar. Bitte machen Sie das Foto noch einmal: gutes Licht, ganze Seite, Handy gerade darüber.",
-        "no_file": "Bitte fügen Sie zuerst einen Brief hinzu (Schritt 2).", "error": "Es gab einen Fehler: {e}. Läuft Ollama?",
+        "no_file": "Bitte fügen Sie zuerst einen Brief hinzu (Schritt 2).", "error": "Es gab einen Fehler: {e}. Läuft Ollama?", "stuck": "Das KI-Modell ist hängen geblieben und hat sich wiederholt. Bitte drücken Sie noch einmal auf den Knopf. Wenn es wieder passiert, machen Sie ein neues, schärferes Foto.",
         "intents": {"more-time": "Um mehr Zeit bitten", "installments": "Um Ratenzahlung bitten",
                     "already-paid": "Sagen, dass ich schon bezahlt habe", "reschedule": "Um einen neuen Termin bitten",
                     "question": "Eine Frage zum Brief stellen"},
@@ -389,7 +390,7 @@ def explain_letter(pages, lang, read_aloud, slow):
                gr.update(visible=bool(audio)), gr.update(value=cal, visible=bool(cal)),
                gr.update(value=explanation, rtl=rtl), a.text, state, nothing, gr.update(visible=True))
     except Exception as e:  # e.g. Ollama not running
-        yield (_status(t["error"].format(e=e)), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
+        yield (_status(_error(e, t)), hidden, "", "", None, hidden, hidden, "", "", None, nothing, hidden)
 
 
 def write_reply(state, intent, note, lang):
@@ -408,6 +409,11 @@ def write_reply(state, intent, note, lang):
     yield draft.german, f"<p><b>{t['s_reply_done']}</b></p><p>{draft.summary}</p>{notes}", str(out)
 
 
+def _error(e: Exception, t: dict) -> str:
+    """Error text for the user: a model loop gets its own message, it is not an Ollama problem."""
+    return t["stuck"] if isinstance(e, ModelLoopError) else t["error"].format(e=e)
+
+
 def _transcribe(recording, lang):
     from amt_lotse.listen import transcribe
 
@@ -422,8 +428,8 @@ def hear_question(recording, lang):
         return "", "", None
     try:
         text = _transcribe(recording, lang)
-    except Exception as e:  # e.g. faster-whisper not installed
-        return "", _status(t["error"].format(e=e)), None
+    except Exception as e:  # e.g. faster-whisper not installed, unreadable recording
+        return "", _status(t["voice_error"].format(e=e)), None
     if not text:
         return "", _status(t["no_speech"]), None
     return text, "", None   # None empties the microphone, ready for the next question
@@ -444,7 +450,7 @@ def answer(state, question, lang, read_aloud, slow):
     try:
         a = answer_question(state["text"], LetterInfo(**state["info"]), question, lang)
     except Exception as e:  # e.g. Ollama not running
-        yield _status(t["error"].format(e=e)), None
+        yield _status(_error(e, t)), None
         return
     sound = str(speak(a.text, lang, "answer", slow=slow, play=False)) if read_aloud else None
     css = "answer" if a.from_letter else "answer unknown"
@@ -461,7 +467,7 @@ def add_to_note(recording, note, lang):
     try:
         text = _transcribe(recording, lang)
     except Exception as e:
-        return gr.update(), _status(t["error"].format(e=e)), None
+        return gr.update(), _status(t["voice_error"].format(e=e)), None
     if not text:
         return gr.update(), _status(t["no_speech"]), None
     return gr.update(value=f"{note} {text}".strip() if note else text), "", None

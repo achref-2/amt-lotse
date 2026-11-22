@@ -25,7 +25,8 @@ def no_real_model(monkeypatch):
 
 @pytest.fixture
 def fake_model(monkeypatch):
-    """fake_model("answer 1", {"sender": ...}, ...): each model call gets the next answer (dicts become JSON).
+    """fake_model("answer 1", {"sender": ...}, ...): each model call gets the next answer (dicts become JSON,
+    exceptions are raised).
     Returns the list of calls, so a test can look at what was sent."""
     calls = []
 
@@ -37,6 +38,8 @@ def fake_model(monkeypatch):
             if not queue:
                 raise AssertionError("The model was called more often than the test expected.")
             answer = queue.pop(0)
+            if isinstance(answer, Exception):      # e.g. Ollama aborting a loop
+                raise answer
             content = json.dumps(answer, ensure_ascii=False) if isinstance(answer, dict) else answer
             return {"message": {"content": content}, "done_reason": "stop"}
 

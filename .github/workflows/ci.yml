@@ -1,4 +1,4 @@
-# Runs on every push and pull request: lint, the 72 rule tests on Linux and Windows, and a Docker build.
+# Runs on every push and pull request: lint, the rule tests on Linux and Windows, and a Docker build.
 # No models are needed: the tests play the models' answers (including wrong ones) and check the rules around them.
 name: CI
 

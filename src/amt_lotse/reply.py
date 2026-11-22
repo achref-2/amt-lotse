@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-from amt_lotse.extract import DATE_PATTERN, LetterInfo, client, options_for
+from amt_lotse.extract import DATE_PATTERN, LetterInfo, chat, options_for
 
 INTENTS = {
     "more-time": {
@@ -74,7 +74,7 @@ def letter_date(letter: str) -> str | None:
 
 def _write_body(letter: str, info: LetterInfo, intent: str, note: str | None) -> str:
     note_text = f"\nThe reader adds this personal information (use it, translate it to German): {note}" if note else ""
-    response = client.chat(
+    response = chat(
         model=_explain_model(),
         messages=[
             {
@@ -134,7 +134,7 @@ def _replace_invented(body: str, invented: list[str]) -> str:
 
 
 def _summarize(german: str, language: str) -> str:
-    response = client.chat(
+    response = chat(
         model=_explain_model(),
         messages=[
             {

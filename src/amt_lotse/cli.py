@@ -21,7 +21,7 @@ from pathlib import Path
 from amt_lotse.extract import (
     MODEL,
     LetterInfo,
-    client,
+    chat,
     extract_letter_info,
     normalize_reference,
     options_for,
@@ -62,7 +62,7 @@ def days_left_text(deadline: date) -> str:
 
 
 def ask_explanation(letter: str, info: LetterInfo, language: str) -> str:
-    response = client.chat(
+    response = chat(
         model=EXPLAIN_MODEL,
         messages=[
             {

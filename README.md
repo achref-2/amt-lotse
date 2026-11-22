@@ -284,7 +284,7 @@ What the extraction eval taught us:
 
 ## Tests
 ```bash
-uv run pytest            # 72 tests, about 3 seconds, no models needed
+uv run pytest            # 82 tests, about 3 seconds, no models needed
 uv run ruff check src tests
 ```
 The tests never call a model. Where the app asks a model, the test plays the model's answer — often a
@@ -294,6 +294,7 @@ The tests never call a model. Where the app asks a model, the test plays the mod
 - **reply drafts:** the model invents "drei Raten zu je 18,71 €" twice → the code turns them into `[Anzahl]` and `[Betrag]`
 - **questions:** answers with a date or amount that is not in the letter are retried, then replaced by "the letter does not say this"
 - **pages:** order, an unreadable page is named, a 15+ page letter keeps page 1
+- **model loops:** Ollama aborts a model that repeats itself ("token repeat limit reached") → one retry with a repetition penalty; a photo that still loops is read in two overlapping halves, and only if that fails too counts as unreadable
 - **security:** the MCP server refuses `../` paths, absolute paths and links that point outside the allowed folders
 - **translations:** every language has every text, and every language switch fills every label of the page
 
@@ -318,7 +319,7 @@ Each safety rule was switched off once to make sure a test fails without it.
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
-- [x] Tests (72, no models needed) and CI on Linux + Windows, Docker build check
+- [x] Tests (82, no models needed) and CI on Linux + Windows, Docker build check
 - [ ] Catch meaning errors in explanations (e.g. appeal period vs. consequence)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 7 tools (local-first, folder allow-list)

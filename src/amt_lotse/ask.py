@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from amt_lotse.cli import EXPLAIN_MODEL, LANGUAGES, is_in_language
 from amt_lotse.evaluate_text import amounts_in, dates_in
-from amt_lotse.extract import LetterInfo, client, options_for
+from amt_lotse.extract import LetterInfo, chat, options_for
 
 NOT_IN_LETTER = "NOT_IN_LETTER"
 
@@ -31,7 +31,7 @@ class Answer:
 
 
 def _ask_model(letter: str, info: LetterInfo, question: str, language: str) -> str:
-    response = client.chat(
+    response = chat(
         model=EXPLAIN_MODEL,
         messages=[
             {
