@@ -29,7 +29,7 @@ All screenshots use fictional test letters from `data/`.
 
 **Progress is shown step by step, in the chosen language, so nobody thinks "nothing is happening"**
 
-![Progress bar with an Arabic status message](docs/progress_ar.png)
+![Arabic status message while the explanation is written, below the example letters](docs/progress_ar.png)
 
 ## Why local first?
 Official letters contain private data (IDs, addresses, tax numbers).
