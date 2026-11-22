@@ -841,6 +841,10 @@ def write_reply(state, intent, note, lang):
     yield draft.german, f"<p><b>{t['s_reply_done']}</b></p><p>{draft.summary}</p>{notes}", str(out)
 
 
+def funnel_mode() -> bool:
+    return os.environ.get("AMT_LOTSE_FUNNEL") == "1"
+
+
 def cloud_mode() -> bool:
     """The always-online version: the app runs on a server (Hugging Face Space), the AI on the owner's PC."""
     return os.environ.get("AMT_LOTSE_CLOUD") == "1"
@@ -851,7 +855,7 @@ def _error(e: Exception, t: dict) -> str:
     Online version: when the AI computer is off, say exactly that (not a technical error)."""
     if isinstance(e, ModelLoopError):
         return t["stuck"]
-    if cloud_mode() and not ai_online():
+    if (cloud_mode() or funnel_mode()) and not ai_online():
         x = TEXT[next(lang for lang, texts in UI.items() if texts is t)]
         return f"{x['ai_off_h']}. {x['ai_off']}"
     return t["error"].format(e=e)
@@ -859,7 +863,7 @@ def _error(e: Exception, t: dict) -> str:
 
 def ai_status(lang):
     """The banner of the online version; empty (hidden) when Amt-Lotse runs on this computer."""
-    return ai_status_html(lang, ai_online()) if cloud_mode() else ""
+    return ai_status_html(lang, ai_online()) if cloud_mode() or funnel_mode() else ""
 
 
 def _transcribe(recording, lang):
@@ -1051,7 +1055,7 @@ def build_ui() -> gr.Blocks:
         ui.load(None, js=ON_LOAD_JS)
         ui.load(lambda saved: saved or "en", inputs=saved_lang, outputs=lang)
         lang.change(switch_language, inputs=lang, outputs=translated, js=SET_LANG_JS)
-        if cloud_mode():
+        if cloud_mode() or funnel_mode():
             ui.load(ai_status, lang, ai_banner, show_progress="hidden")
             gr.Timer(30).tick(ai_status, lang, ai_banner, show_progress="hidden")
 
@@ -1124,6 +1128,48 @@ CLOUD_NOTE = """
   • AI right now: {online}. When the PC is off, the page still works and says that the AI server is off.
   • Letters pass through this server (encrypted) on their way to your PC; they are not stored here.
 """
+FUNNEL_NOTE = """
+  Amt-Lotse online (Tailscale Funnel)
+  • Website and phone app:  {url}
+  • Status page (always online, says when this PC is off):  {status_page}
+  • User: amt, password: the one in AMT_LOTSE_PASSWORD. Without it nobody can use the app.
+  • Letters travel encrypted straight to THIS computer; Tailscale's relays can't read them, nothing is stored online.
+  • Stop: Ctrl + C (the address then shows nothing; the status page says the AI server is off).
+"""
+
+STATUS_PAGE = "https://achref-2.github.io/amt-lotse/"
+STATUS_ORIGINS = ("https://achref-2.github.io",)
+
+
+def add_status_route(ui: gr.Blocks) -> None:
+    """/amt-status: the only page without a password. It says just whether the AI is ready, so the status
+    page on GitHub can show "AI server is off" or the "Open" button. No letter data, nothing else."""
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+
+    def status(request: Request) -> JSONResponse:
+        origin = request.headers.get("origin", "")
+        headers = {"Cache-Control": "no-store", "Vary": "Origin"}
+        if origin in STATUS_ORIGINS:
+            headers["Access-Control-Allow-Origin"] = origin
+        return JSONResponse({"app": True, "ai": ai_online()}, headers=headers)
+
+    ui.app.add_api_route("/amt-status", status, methods=["GET"])
+    ui.app.router.routes.insert(0, ui.app.router.routes.pop())   # before Gradio's own routes
+
+
+def start_funnel(port: int) -> tuple[bool, str]:
+    """Turns on Tailscale Funnel for this port (stays on after a restart; running it again changes nothing)."""
+    try:
+        done = subprocess.run(["tailscale", "funnel", "--bg", str(port)], capture_output=True, text=True, timeout=30)
+        return done.returncode == 0, (done.stdout + done.stderr).strip()
+    except FileNotFoundError:
+        return False, "Tailscale was not found. Install it from https://tailscale.com/download and sign in."
+    except subprocess.TimeoutExpired as e:
+        # the first time, Tailscale may wait until Funnel is allowed for the tailnet (it prints a link for that)
+        return False, ((e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")).strip()
+
+
 SHARE_WARNING = """
   ⚠  PUBLIC LINK – please read
   • Anyone who has the link AND the password can use Amt-Lotse on this computer.
@@ -1169,6 +1215,9 @@ def main() -> None:
     parser.add_argument("--cloud", action="store_true",
                         help="always-online version (Hugging Face Space): this server shows the app, the AI runs on "
                              "your PC (OLLAMA_HOST, reached through Tailscale); needs AMT_LOTSE_PASSWORD")
+    parser.add_argument("--funnel", action="store_true",
+                        help="always online from anywhere (website + phone app, Wi-Fi or 4G): public HTTPS address "
+                             "via Tailscale Funnel, AI on this PC; needs AMT_LOTSE_PASSWORD (10+ characters)")
     parser.add_argument("--share", action="store_true",
                         help="temporary public link via gradio.live, e.g. for a demo (asks for a password; "
                              "letters then pass through Gradio's servers)")
@@ -1200,6 +1249,30 @@ def main() -> None:
                                 online="reachable" if ai_online() else "NOT reachable (PC off?)"))
         build_ui().launch(server_name="0.0.0.0", auth=("amt", password),
                           auth_message="Amt-Lotse – please enter your password.", **common)
+        return
+
+    if args.funnel:
+        # Public address: anyone can reach the login page, so a real password is required.
+        # Amt-Lotse stays on 127.0.0.1; Tailscale passes the encrypted traffic on to it.
+        if args.share or args.lan or args.tailscale or args.cloud:
+            parser.error("--funnel is its own mode; use it without --share/--lan/--tailscale/--cloud")
+        password = os.environ.get("AMT_LOTSE_PASSWORD", "")
+        if len(password) < 10:
+            parser.error("--funnel needs a password of at least 10 characters in AMT_LOTSE_PASSWORD "
+                         "(once: setx AMT_LOTSE_PASSWORD \"your-password\", then open a new terminal)")
+        os.environ["AMT_LOTSE_FUNNEL"] = "1"
+        ok, output = start_funnel(args.port)
+        if not ok:
+            print("\n  Tailscale Funnel is not on yet:\n  " + (output or "no answer from Tailscale"))
+            print(f"  Follow the link above if there is one, or run:  tailscale funnel --bg {args.port}\n")
+        url = tailscale_url(args.port) or "https://<this-computer>.<your-tailnet>.ts.net"
+        print(FUNNEL_NOTE.format(url=url, status_page=STATUS_PAGE))
+        print_qr(url)
+        ui = build_ui()
+        ui.launch(server_name="127.0.0.1", auth=("amt", password), prevent_thread_lock=True, inbrowser=False,
+                  auth_message="Amt-Lotse – please enter your password.", **common)
+        add_status_route(ui)
+        ui.block_thread()
         return
 
     if not (args.lan or args.tailscale or args.share):

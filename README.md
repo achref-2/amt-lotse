@@ -34,7 +34,7 @@ All screenshots use fictional test letters from `data/`.
 ## Why local first?
 Official letters contain private data (IDs, addresses, tax numbers).
 Amt-Lotse runs local models via [Ollama](https://ollama.com) and [Piper](https://github.com/OHF-Voice/piper1-gpl), so **your letters never leave your machine** — no cloud API, no account.
-(The optional [always-online version](#always-online-website--phone-app-ai-on-your-pc) keeps the AI on your PC but lets letters pass through a Hugging Face Space; it says so on the page.)
+(The optional [always-online version](#always-online-website--phone-app-ai-on-your-pc) keeps the AI on your PC too: letters travel encrypted from your phone to your PC, and the page says so.)
 
 ## Example
 A scanned debt reminder (`data/photos/mahnung_01_scan.png`):
@@ -103,6 +103,7 @@ Add `--speak` to hear it, `--lang ar` for Arabic, `--reply installments` for a r
 uv run amt-lotse-ui              # opens http://127.0.0.1:7860 — only reachable from this computer
 uv run amt-lotse-ui --lan        # also from your phone on the same Wi-Fi (password protected)
 uv run amt-lotse-ui --tailscale  # phone app with HTTPS, at home and on the way (password protected)
+uv run amt-lotse-ui --funnel     # always online from anywhere, with a status page (see "Always online")
 ```
 
 Language choice, a camera button, photo/PDF upload, one-click example letters, a big "Explain" button,
@@ -159,52 +160,37 @@ Use the phone modes only in networks you trust. Windows may ask once whether Pyt
 connections in private networks. Set `AMT_LOTSE_PASSWORD` to keep the same password between starts.
 
 ## Always online (website + phone app, AI on your PC)
-The page is always reachable, on Wi-Fi or 4G. Only the AI needs your PC: when it is off, the page still opens and
-says **"The AI server is off"** in the chosen language; as soon as the PC is on, letters are explained again.
+The start page is always online, on Wi-Fi or 4G: **https://achref-2.github.io/amt-lotse/**. The app and the AI run
+on your PC. When the PC is on, the page shows **"AI ready"** and an **Open Amt-Lotse** button; when it is off, it says
+**"The AI server is off"** in the chosen language.
 
 ```
-phone ──HTTPS──▶ Hugging Face Space (app, speech-to-text, read-aloud) ──Tailscale──▶ your PC (Ollama)
+phone / browser ──▶ achref-2.github.io/amt-lotse  (static page, always online, asks "is the AI on?")
+               └──HTTPS──▶ https://<your-pc>.<tailnet>.ts.net  (Tailscale Funnel) ──▶ your PC: app + Ollama
 ```
 
-**Privacy:** in this mode letters pass through the Hugging Face Space (encrypted, not stored) on their way to your
-PC. No AI company sees them, but "never leaves your machine" is only true for the local modes above. The page is
-password protected, and the Space can reach nothing on your PC except the AI.
+**Privacy:** letters go encrypted straight to your PC. Tailscale's relays only pass the encrypted data on and
+cannot read it; no AI company and no hosting service sees the letters. The app is public but password protected.
+The only page without a password is `/amt-status`, which says nothing but whether the AI is on.
 
 **On your PC (once)**
-1. Install [Tailscale](https://tailscale.com/download) and sign in. Let Ollama and Tailscale start with Windows (default).
-2. Share only the AI with your tailnet (Ollama itself stays on `127.0.0.1`):
-   `tailscale serve --bg --tcp 11434 tcp://localhost:11434`
-3. Note your PC's address: `tailscale status` → `<your-pc>.<your-tailnet>.ts.net`, and its `100.x.y.z` IP.
-4. Windows: *Settings → System → Power → Sleep → Never* (when plugged in), so the AI stays reachable.
+1. Install [Tailscale](https://tailscale.com/download), sign in, and let Ollama and Tailscale start with Windows.
+2. Choose a password (at least 10 characters) and store it for your user:
+   `setx AMT_LOTSE_PASSWORD "your-password"` (then open a new terminal).
+3. Start: double-click [`scripts/start-online.cmd`](scripts/start-online.cmd) (or `uv run amt-lotse-ui --funnel`).
+   The first time, Tailscale may print a link to allow Funnel and HTTPS for your tailnet: open it, click *Enable*,
+   start again. The window shows your address (`https://<your-pc>.<tailnet>.ts.net`) and a QR code.
+4. Start it with Windows: press `Win + R`, type `shell:startup`, and put a shortcut to `scripts/start-online.cmd` there.
+   Set Windows to never sleep while plugged in.
 
-**In the Tailscale admin console (once)**
-1. *Access controls*: let the Space reach only the AI port. Replace the default "allow all" rule with:
-   ```json
-   "tagOwners": { "tag:amt-space": ["autogroup:admin"] },
-   "hosts":     { "my-pc": "100.x.y.z" },
-   "acls": [
-     { "action": "accept", "src": ["autogroup:member"], "dst": ["*:*"] },
-     { "action": "accept", "src": ["tag:amt-space"],    "dst": ["my-pc:11434"] }
-   ]
-   ```
-2. *Settings → OAuth clients → Generate*: scope **Auth Keys (write)**, tag `tag:amt-space`. Copy the secret
-   (`tskey-client-…`). It does not expire, unlike normal auth keys (max. 90 days).
+**The status page (once)**: build it with your address, push, then turn on GitHub Pages
+(*Settings → Pages → Deploy from a branch → main, /docs*):
+```bash
+uv run python scripts/build_status_page.py https://<your-pc>.<tailnet>.ts.net
+```
 
-**On Hugging Face (once)**
-1. *New Space* → SDK **Gradio** → *Blank*, hardware *CPU Basic* (free), name `amt-lotse`. (The Docker SDK is a paid option on some accounts; the Gradio Space starts Tailscale itself from `deploy/huggingface/app.py`.)
-2. Space *Settings → Variables and secrets*:
-   - secret `AMT_LOTSE_PASSWORD`: your login password (at least 10 characters; user name is `amt`)
-   - secret `TS_AUTHKEY`: the `tskey-client-…` secret
-   - variable `OLLAMA_HOST`: `http://<tailscale-ip-of-your-pc>:11434` (`tailscale ip -4` shows it)
-3. Your profile → *Access Tokens* → a **write** token for this Space.
-
-**On GitHub (once)**: repository *Settings → Secrets and variables → Actions*: secret `HF_TOKEN` (the token),
-variable `HF_SPACE` (e.g. `achref-2/amt-lotse`). From now on every push to `main` that changes the app updates
-the Space ([`.github/workflows/space.yml`](.github/workflows/space.yml), files in [`deploy/huggingface`](deploy/huggingface)).
-The first build takes about 10 minutes. Run it by hand under *Actions → Online version → Run workflow*.
-
-**On the phone**: open `https://<hf-user>-amt-lotse.hf.space`, log in, then *Install app* / *Add to Home Screen*.
-A free Space sleeps after 2 days without visits and wakes up in about a minute when opened.
+**On the phone**: open the status page, tap *Open Amt-Lotse*, log in (user `amt`), then *Install app* /
+*Add to Home Screen*.
 
 ## Install with Docker (one command)
 Needs [Docker Desktop](https://www.docker.com/products/docker-desktop/). Everything stays on your computer.
@@ -395,7 +381,7 @@ from them.
 
 ## Tests
 ```bash
-uv run pytest            # 181 tests, about 3 seconds, no models needed
+uv run pytest            # 185 tests, about 3 seconds, no models needed
 uv run ruff check src tests
 ```
 The tests never call a model. Where the app asks a model, the test plays the model's answer — often a
@@ -432,7 +418,7 @@ Each safety rule was switched off once to make sure a test fails without it.
 - [x] Rule-based evaluation for explanation and reply texts
 - [x] Use from a phone on the same Wi-Fi (camera upload, password protected)
 - [x] Phone app: installable (PWA), camera button, QR code login, HTTPS via Tailscale or mkcert
-- [x] Tests (181, no models needed) and CI on Linux + Windows, Docker build check
+- [x] Tests (185, no models needed) and CI on Linux + Windows, Docker build check
 - [x] Knowledge base (RAG) with sources for official terms; meaning checks in the evaluation (`--no-rag` to compare)
 - [x] Docker: one-command install (`docker compose up`)
 - [x] MCP server with 7 tools (local-first, folder allow-list)
