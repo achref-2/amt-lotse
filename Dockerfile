@@ -12,7 +12,8 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 # 1) dependencies only (cached as long as pyproject.toml / uv.lock do not change)
-COPY pyproject.toml uv.lock README.md ./
+# LICENSE is needed for the build: pyproject.toml lists it under license-files
+COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # 2) the project itself + example letters
